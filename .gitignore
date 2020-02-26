@@ -1,0 +1,8 @@
+Data/
+Scripts/Occupation-EDA_cache
+Scripts/Occupation-EDA_files
+
+.Rproj.user/
+
+.Rhistory
+*.Rproj

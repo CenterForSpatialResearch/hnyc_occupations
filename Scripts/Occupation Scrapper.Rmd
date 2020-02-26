@@ -1,0 +1,47 @@
+---
+title: "Occupation Scrapping"
+author: "Clinton"
+date: "19 February 2020"
+output: html_document
+---
+
+### 1. Set Up
+
+```{r message = FALSE, message = FALSE}
+library(rvest)
+library(dplyr)
+```
+
+<br>
+
+### 2. OCC1880 
+
+```{r}
+OCC1880_raw = 
+  read_html("https://usa.ipums.org/usa/volii/occ1880.shtml") %>%
+  html_nodes(css = "td") %>%
+  html_text() %>%
+  .[-c(1:6)] # Rows 1 to 6 were headers
+
+OCC1880 = data.frame(
+  num = OCC1880_raw[seq(1, NROW(OCC1880_raw), by = 2)],
+  code = OCC1880_raw[seq(2, NROW(OCC1880_raw), by = 2)],
+  stringsAsFactors = FALSE
+)
+```
+
+```{r}
+OCC1920_raw = 
+  read_html("https://usa.ipums.org/usa/volii/occ1920.shtml") %>%
+  html_nodes(css = "td") %>%
+  html_text() %>%
+  .[-c(1:9)] # Rows 1 to 9 were headers
+
+OCC1920 = data.frame(
+  num = OCC1920_raw[seq(1, NROW(OCC1920_raw), by = 2)],
+  code = OCC1920_raw[seq(2, NROW(OCC1920_raw), by = 2)],
+  stringsAsFactors = FALSE
+)
+```
+
+
