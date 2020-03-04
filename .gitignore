@@ -1,0 +1,8 @@
+Data/
+Scripts/1_Initial_EDA_cache
+Scripts/1_Initial_EDA_files
+
+.Rproj.user/
+
+.Rhistory
+*.Rproj

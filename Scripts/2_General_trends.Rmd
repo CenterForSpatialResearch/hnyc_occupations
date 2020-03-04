@@ -1,0 +1,563 @@
+---
+title: "2. General Trends"
+author: "Clinton"
+date: "3 March 2020"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+### 1. Set Up
+
+#### a. Loading 1850
+
+```{r message = FALSE, warning = FALSE}
+library(dplyr)
+library(ggplot2)
+library(treemap)
+library(extrafont)
+library(stringr)
+loadfonts()
+library(knitr)
+library(kableExtra)
+library(tidyr)
+
+# Loading
+mn_1850 = readr::read_csv("../Data/census_1850_occ_mn.csv") %>% mutate(city = "Manhattan")
+bk_1850 = readr::read_csv("../Data/census_1850_occ_bk.csv") %>% mutate(city = "Brooklyn")
+OCC_1880 = readr::read_csv("../Data/OCC1880.csv")
+
+# Combining Data
+combined_1850 = rbind(mn_1850, bk_1850) %>% 
+  select(age, sex, marst, race, labforce,
+         occ, city, everything()) %>%
+  left_join(OCC_1880, by = c("occ" = "code")) %>%
+  mutate(race = factor(race,
+                       levels = c(100,120,200,210,300),
+                       labels = c("White", "Black (white)",
+                                  "Black / African American",
+                                  "Mulatto", "American Indian")),
+         labforce = factor(labforce,
+                           levels = c(0,1,2),
+                           labels = c("N/A",
+                                      "No, not in the labor force",
+                                      "Yes, in the labor force")),
+         sex = factor(sex,
+                      levels = c(1,2),
+                      labels = c("Male", "Female")),
+         marst = factor(marst,
+                        levels = c(1:6),
+                        labels = c("Married, spouse present",
+                                   "Married, spouse absent",
+                                   "Separated",
+                                   "Divorced",
+                                   "Widowed",
+                                   "Never married/single")))
+
+# Theme setting for visualisations
+theme_set(theme_minimal() + 
+            theme(panel.grid.minor = element_blank(),
+                  text = element_text(family = "Quicksand",
+                                      colour = "black")))
+col_sex = c("#e21737", "#0b648f")
+col_miss = c("#86b817", "#e53238")
+
+# Saving Memory
+rm(OCC_1880)
+rm(bk_1850)
+rm(mn_1850)
+```
+
+<br>
+
+#### b. Loading 1880
+
+```{r message = FALSE, warning = FALSE}
+# Loading
+mn_1880 = readr::read_csv("../Data/census_1880_occ_mn.csv") %>% mutate(city = "Manhattan")
+bk_1880 = readr::read_csv("../Data/census_1880_occ_bk.csv") %>% mutate(city = "Brooklyn")
+OCC_1880 = readr::read_csv("../Data/OCC1880.csv")
+
+# Combining Data
+combined_1880 = rbind(mn_1880, bk_1880) %>% 
+  select(age, sex, race, labforce,
+         occ, city, everything()) %>%
+  left_join(OCC_1880, by = c("occ" = "code")) %>%
+  mutate(age = ifelse(age == "Less than 1 year old",
+                      0,
+                      age),
+         age = as.numeric(age))
+
+rm(OCC_1880)
+rm(bk_1880)
+rm(mn_1880)
+```
+
+<br>
+
+#### c. Loading 1910
+
+```{r message = FALSE, warning = FALSE}
+# Loading
+mn_1910 = readr::read_csv("../Data/census_1910_occ_mn.csv") %>% mutate(city = "Manhattan")
+bk_1910 = readr::read_csv("../Data/census_1910_occ_bk.csv") %>% mutate(city = "Brooklyn")
+OCC_1950 = readr::read_csv("../Data/OCC1950.csv")
+
+# Combining Data
+combined_1910 = rbind(mn_1910, bk_1910) %>%
+  left_join(OCC_1950, by = c("occ1950" = "code")) %>%
+  mutate(sex = factor(sex,
+                      levels = c(1,2),
+                      labels = c("Male", "Female")),
+         labor_force = factor(labor_force,
+                              levels = c(0,1,2),
+                              labels = c("N/A", 
+                                         "No, not in the labor force",
+                                         "Yes, in the labor force")))
+
+rm(OCC_1950)
+rm(mn_1910)
+rm(bk_1910)
+```
+
+<br>
+
+#### d. Subsetting samples
+
+```{r}
+s_1850 = combined_1850[sample(NROW(combined_1850), 10000), ]
+s_1880 = combined_1880[sample(NROW(combined_1880), 10000), ]
+s_1910 = combined_1910[sample(NROW(combined_1910), 10000), ]
+```
+
+<br>
+
+### 2. Inspecting Missing Data of Samples {.tabset .tabset-fade}
+
+#### 1850
+
+```{r message = FALSE, warning = FALSE}
+s_1850 %>% 
+  mutate(miss_occ = ifelse(occ == 999,1,0)) %>%
+  ggplot(aes(y = age, x = sex, col = factor(miss_occ))) +
+  geom_jitter(alpha = 0.5,
+              size = 1) + 
+  facet_wrap(~labforce) +
+  
+  scale_color_manual(values = col_miss) +
+  
+  labs(y = "Age", x = "Sex",
+       col = "Missing", title = "1850") + 
+  theme(legend.position = "top",
+        panel.grid.major.y = element_blank()) +
+  coord_flip()
+```
+
+<br>
+
+##### NA + Male
+
+```{r}
+s_1850 %>%
+  filter(occ != 999 &
+           labforce == "N/A") %>%
+  group_by(label, occstr, sex) %>%
+  summarise(count = n(), avg_age = mean(age)) %>%
+  arrange(desc(count)) %>%
+  kable() %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "300px")
+```
+
+<br>
+
+##### No, not in the labor force + Male
+
+```{r}
+s_1850 %>%
+  filter(occ != 999 &
+           labforce == "No, not in the labor force") %>%
+  group_by(label, occstr) %>%
+  summarise(count = n(), avg_age = mean(age)) %>%
+  arrange(desc(count)) %>%
+  kable() %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "300px")
+```
+
+<br>
+
+#### 1880
+
+```{r warning = FALSE}
+s_1880 %>% 
+  mutate(miss_occ = ifelse(occ == 999,1,0)) %>%
+  ggplot(aes(y = age, x = sex, col = factor(miss_occ))) +
+  geom_jitter(alpha = 0.5,
+              size = 1) + 
+  facet_wrap(~labforce) +
+  
+  scale_color_manual(values = col_miss) +
+  
+  labs(y = "Age", x = "Sex",
+       col = "Missing", title = "1880") + 
+  theme(legend.position = "top",
+        panel.grid.major.y = element_blank()) +
+  coord_flip()
+```
+
+<br>
+
+##### N/A
+
+```{r}
+s_1880 %>%
+  filter(labforce == "N/A") %>%
+  group_by(label,occstr, sex) %>%
+  summarise(count = n(), avg_age = mean(age)) %>%
+  arrange(desc(count)) %>%
+  kable() %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "300px")
+```
+
+<br>
+
+##### No, not in the labor force
+
+```{r}
+s_1880 %>%
+  filter(labforce == "No, not in the labor force") %>%
+  group_by(label, occstr, sex) %>%
+  summarise(count = n(), avg_age = mean(age)) %>%
+  arrange(desc(count)) %>%
+  kable() %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "300px")
+```
+
+<br>
+
+#### 1910
+
+```{r}
+s_1910 %>% 
+  mutate(miss_occ = ifelse(occ1950 == 999,1,0)) %>%
+  ggplot(aes(y = age, x = sex, col = factor(miss_occ))) +
+  geom_jitter(alpha = 0.5,
+              size = 1) + 
+  facet_wrap(~labor_force) +
+  
+  scale_color_manual(values = col_miss) +
+  
+  labs(y = "Age", x = "Sex",
+       col = "Missing", title = "1910") + 
+  theme(legend.position = "top",
+        panel.grid.major.y = element_blank()) +
+  coord_flip()
+```
+
+<br>
+
+##### N/A
+
+```{r}
+s_1910 %>%
+  filter(labor_force == "N/A") %>%
+  group_by(label,sex) %>%
+  summarise(count = n(), avg_age = mean(age)) %>%
+  arrange(desc(count)) %>%
+  kable() %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "300px")
+```
+
+##### No, not in the labor force
+
+```{r}
+s_1910 %>%
+  filter(labor_force == "No, not in the labor force") %>%
+  group_by(label,occstr,sex) %>%
+  summarise(count = n(), avg_age = mean(age)) %>%
+  arrange(desc(count)) %>%
+  kable() %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "300px")
+```
+
+<br>
+
+### 3. Top Jobs
+
+```{r}
+combined_1850 %>%
+  select(occstr, label) %>%
+  group_by(occstr, label) %>%
+  summarise(count = n()) %>%
+  arrange(desc(count))
+```
+
+```{r}
+combined_1880 %>%
+  select(occstr, label) %>%
+  group_by(occstr, label) %>%
+  summarise(count = n()) %>%
+  arrange(desc(count))
+```
+
+```{r}
+combined_1910 %>%
+  select(occstr, label, occstr_2) %>%
+  group_by(occstr, label, occstr_2) %>%
+  summarise(count = n()) %>%
+  arrange(desc(count))
+```
+
+<br>
+
+### 4. Trends in Occupation
+
+#### a. The case of not using labels
+
+```{r}
+top15_1850 = combined_1850 %>%
+  filter(labforce == "Yes, in the labor force") %>%
+  count(label) %>%
+  arrange(desc(n)) %>%
+  .[1:15, "label"]
+
+top15_1880 = combined_1880 %>%
+  filter(labforce == "Yes, in the labor force") %>%
+  count(label) %>%
+  arrange(desc(n)) %>%
+  .[1:15, "label"]
+
+top15_1910 = combined_1910 %>%
+  filter(labor_force == "Yes, in the labor force") %>%
+  count(label) %>%
+  arrange(desc(n)) %>%
+  .[1:15, "label"]
+
+data.frame(top15_1850, top15_1880, top15_1910) %>%
+  kable() %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "300px")
+```
+
+<br>
+
+#### b. General Trends
+
+```{r}
+combined_1850 %>%
+  filter(labforce == "Yes, in the labor force") %>%
+  summarise(count = n()) %>%
+  rbind(combined_1880 %>%
+          filter(labforce == "Yes, in the labor force") %>%
+          summarise(count = n()),
+        combined_1910 %>%
+          summarise(count = n())) %>%
+  cbind(year = c(1850, 1880, 1910), .) %>%
+  
+  ggplot(aes(y = 1, x = factor(year))) +
+  geom_point(aes(size = count), 
+             show.legend = FALSE,
+             col = "#ffa600") + 
+  geom_text(aes(label = count),
+            family = "Quicksand") +
+  scale_size(range = c(30,60)) +
+  scale_y_continuous(limits = c(0.75,1.25)) +
+  
+  labs(y = "", x = "Year") +
+  
+  theme(axis.text.y = element_blank(),
+        panel.grid = element_blank())
+```
+
+<br>
+
+#### c. Removing particular labels
+
+Aside from filtering for respondents who were not in the workforce, of the respondents who were in the workforce, the following `occstr` were excluded:
+* `NA`
+* NONE
+* KEEPING HOUSE
+* KEEPS HOUSE
+* AT HOME
+* AT SCHOOL
+
+<br>
+
+#### c. Top 10 Jobs of each year, across time
+
+```{r}
+top10_1850 = combined_1850 %>%
+  filter(labforce == "Yes, in the labor force") %>%
+  count(occstr) %>%
+  arrange(desc(n)) %>%
+  .[1:10, "occstr"]
+
+top10_1880 = combined_1880 %>%
+  filter(labforce == "Yes, in the labor force") %>%
+  count(occstr) %>%
+  arrange(desc(n)) %>%
+  .[1:10, "occstr"]
+
+top10_1910 = combined_1910 %>%
+  filter(labor_force == "Yes, in the labor force" & 
+           !is.na(occstr)) %>%
+  count(occstr) %>%
+  arrange(desc(n)) %>%
+  .[1:10, "occstr"]
+
+top10_combined = top10_1850 %>%
+  full_join(top10_1880, by = "occstr") %>%
+  full_join(top10_1910, by = "occstr")
+
+top10_combined %>% 
+  kable() %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "300px")
+```
+
+* Subsequently, the code was re-ran, to count Dress Maker and Dressmaker together, along with Clerk and Clerk in store. On this run, further ammendments were added, such as to add Domestic Servant and Servant together. The code is not shown, but the new results are:
+
+```{r echo = FALSE}
+top10_1880 = combined_1880 %>%
+  filter(labforce == "Yes, in the labor force") %>%
+  mutate(occstr = ifelse(occstr == "DRESS MAKER",
+                         "DRESSMAKER",
+                         occstr),
+         occstr = ifelse(occstr == "CLERK IN STORE",
+                         "CLERK",
+                         occstr),
+         occstr = ifelse(occstr == "DOMESTIC SERVANT",
+                         "SERVANT",
+                         occstr)) %>%
+  count(occstr) %>%
+  arrange(desc(n)) %>%
+  .[1:10, "occstr"]
+
+top10_1910 = combined_1910 %>%
+  filter(labor_force == "Yes, in the labor force" & 
+           !is.na(occstr)) %>%
+  mutate(occstr == ifelse(occstr == "DOMESTIC SERVANT",
+                          "SERVANT",
+                          occstr)) %>%
+  count(occstr) %>%
+  arrange(desc(n)) %>%
+  .[1:10, "occstr"]
+
+top10_years = top10_1850 %>%
+  full_join(top10_1880, by = "occstr") %>%
+  full_join(top10_1910, by = "occstr")
+
+top10_years %>% 
+  kable() %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "300px")
+```
+
+<br>
+
+#### d. Change in Top 10 Jobs of Each Year
+
+```{r}
+top10_combined = top10_years %>%
+  left_join(combined_1850 %>%
+              filter(occstr %in% top10_years$occstr) %>%
+              count(occstr),
+            by = "occstr") %>%
+  left_join(combined_1880 %>%
+              filter(occstr %in% top10_years$occstr) %>%
+              count(occstr),
+            by = "occstr") %>% 
+  left_join(combined_1910 %>%
+              filter(occstr %in% top10_years$occstr) %>%
+              count(occstr),
+            by = "occstr") %>%
+  select(occupation = occstr,
+         t_1850 = n.x,
+         t_1880 = n.y,
+         t_1910 = n) %>%
+  gather(key = "year", value = "count", -occupation) %>%
+  mutate(year = case_when(year == "t_1850" ~ 1850,
+                          year == "t_1880" ~ 1880,
+                          year == "t_1910" ~ 1910),
+         count = ifelse(is.na(count),
+                        0,
+                        count))
+
+# Adding logical of if occupation was a top 10 for that particular year
+top10_by_year = rbind(cbind(top10_1850, year = 1850),
+        cbind(top10_1880, year = 1880),
+        cbind(top10_1910, year = 1910)) %>%
+  select(occupation = occstr, year) %>%
+  mutate(top = 1)
+
+top10_combined = top10_combined %>% 
+  left_join(top10_by_year, by = c("occupation", "year")) %>% mutate(top = ifelse(is.na(top),
+                                                                                 0,
+                                                                                 1))
+```
+
+```{r}
+col_3 = c("#ffa600", "#bc5090", "#003f5c")
+top10_combined %>%
+  ggplot(aes(y = reorder(occupation, count), 
+             x = count, 
+             col = factor(year),
+             group = occupation)) + 
+  geom_point(aes(size = year),
+             alpha = 0.8,
+             show.legend = FALSE) +
+  geom_line() +
+  scale_color_manual(values = col_3) +
+  scale_radius(range = c(2,5)) +
+  labs(y = "Occupations", col = "Year")
+```
+
+```{r}
+top10_combined %>%
+  group_by(occupation) %>%
+  mutate(difference = first(count) - last(count),
+         colour = ifelse(difference > 0,
+                         "#86b817",
+                         "#e53238")) %>%
+  ggplot(aes(y = count, x = year)) +
+  geom_point(aes(col = colour,
+                 shape = factor(top)),
+             size = 2) +
+  geom_line(aes(col = colour)) +
+  facet_wrap(~reorder(occupation, difference),
+             scales = "free") +
+  labs(y = "Count", x = "Year") +
+  theme(legend.position = "none")
+```
+
+```{r}
+top10_combined %>%
+  group_by(occupation) %>%
+  mutate(difference = first(count) - last(count),
+         colour = ifelse(difference > 0,
+                         "#86b817",
+                         "#e53238")) %>%
+  ggplot(aes(y = count, x = year)) +
+  geom_col(aes(fill = colour,
+               col = factor(top)),
+           size = 1) +
+  facet_wrap(~reorder(occupation, difference),
+             scales = "free") +
+  
+  scale_color_manual(values = c("white", "black")) +
+  
+  labs(y = "Count", x = "Year") +
+  theme(legend.position = "none",
+        axis.text.x = element_text(size = 7))
+```
+
+
+
+
+
+
