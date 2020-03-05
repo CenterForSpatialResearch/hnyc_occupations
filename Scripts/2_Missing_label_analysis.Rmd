@@ -1,0 +1,348 @@
+---
+title: "2. Missing Label Analysis"
+author: "Clinton"
+date: "4 March 2020"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+<br>
+
+```
+Objective: Analyse why there are missing `labels` (which are occupation codes coded as blank)
+
+A considerable number of inconsistencies were found, such as where the census takers in 1880 coded housekeeping as an occupation, but not in the other two time periods. 
+
+Also, there are a minority of respondents who had a meaningful occupation (i.e. not 999), but were not categorised as being in the labour force. It is unsure why this is so based on available information. However, given that this represents a very small minority of respondents, it might be better to drop this group of respondents.
+
+The results of the missing data analyses suggest that it might be most appropriate to only select "Yes, in the labor force" respondents for analysis of the occupation across the three time periods. 
+
+This was because a large proportion of respondents who were "N/A" or "Not not in the labor force", were either too young (under the age of 16), or were mainly housekeepers. 
+```
+<br> 
+
+### 1. Set Up {.tabset .tabset-fade}
+
+#### README
+
+In general, the data sets are relatively large, and take up a large amount of memory after loading. It is recommended that after loading, that the data sets be subsetted or summarised, and unused data frames to be removed.
+
+The code is shown in the next three tabs to show any changes that may have been made. In general, no columns or rows are removed. Filtering occured in the next step.
+
+<br>
+
+#### Loading 1850
+
+```{r message = FALSE, warning = FALSE}
+library(dplyr)
+library(ggplot2)
+library(treemap)
+library(extrafont)
+library(stringr)
+loadfonts()
+library(knitr)
+library(kableExtra)
+library(tidyr)
+
+# Loading
+mn_1850 = readr::read_csv("../Data/census_1850_occ_mn.csv") %>% mutate(city = "Manhattan")
+bk_1850 = readr::read_csv("../Data/census_1850_occ_bk.csv") %>% mutate(city = "Brooklyn")
+OCC_1880 = readr::read_csv("../Data/OCC1880.csv")
+
+# Combining Data
+combined_1850 = rbind(mn_1850, bk_1850) %>% 
+  select(age, sex, marst, race, labforce,
+         occ, city, everything()) %>%
+  left_join(OCC_1880, by = c("occ" = "code")) %>%
+  mutate(race = factor(race,
+                       levels = c(100,120,200,210,300),
+                       labels = c("White", "Black (white)",
+                                  "Black / African American",
+                                  "Mulatto", "American Indian")),
+         labforce = factor(labforce,
+                           levels = c(0,1,2),
+                           labels = c("N/A",
+                                      "No, not in the labor force",
+                                      "Yes, in the labor force")),
+         sex = factor(sex,
+                      levels = c(1,2),
+                      labels = c("Male", "Female")),
+         marst = factor(marst,
+                        levels = c(1:6),
+                        labels = c("Married, spouse present",
+                                   "Married, spouse absent",
+                                   "Separated",
+                                   "Divorced",
+                                   "Widowed",
+                                   "Never married/single")))
+
+# Theme setting for visualisations
+theme_set(theme_minimal() + 
+            theme(panel.grid.minor = element_blank(),
+                  text = element_text(family = "Quicksand",
+                                      colour = "black")))
+col_sex = c("#e21737", "#0b648f")
+col_miss = c("#86b817", "#e53238")
+
+# Saving Memory
+rm(OCC_1880)
+rm(bk_1850)
+rm(mn_1850)
+```
+
+<br>
+
+#### Loading 1880
+
+```{r message = FALSE, warning = FALSE}
+# Loading
+mn_1880 = readr::read_csv("../Data/census_1880_occ_mn.csv") %>% mutate(city = "Manhattan")
+bk_1880 = readr::read_csv("../Data/census_1880_occ_bk.csv") %>% mutate(city = "Brooklyn")
+OCC_1880 = readr::read_csv("../Data/OCC1880.csv")
+
+# Combining Data
+combined_1880 = rbind(mn_1880, bk_1880) %>% 
+  select(age, sex, race, labforce,
+         occ, city, everything()) %>%
+  left_join(OCC_1880, by = c("occ" = "code")) %>%
+  mutate(age = ifelse(age == "Less than 1 year old",
+                      0,
+                      age),
+         age = as.numeric(age))
+
+rm(OCC_1880)
+rm(bk_1880)
+rm(mn_1880)
+```
+
+<br>
+
+#### Loading 1910
+
+```{r message = FALSE, warning = FALSE}
+# Loading
+mn_1910 = readr::read_csv("../Data/census_1910_occ_mn.csv") %>% mutate(city = "Manhattan")
+bk_1910 = readr::read_csv("../Data/census_1910_occ_bk.csv") %>% mutate(city = "Brooklyn")
+OCC_1950 = readr::read_csv("../Data/OCC1950.csv")
+
+# Combining Data
+combined_1910 = rbind(mn_1910, bk_1910) %>%
+  left_join(OCC_1950, by = c("occ1950" = "code")) %>%
+  mutate(sex = factor(sex,
+                      levels = c(1,2),
+                      labels = c("Male", "Female")),
+         labor_force = factor(labor_force,
+                              levels = c(0,1,2),
+                              labels = c("N/A", 
+                                         "No, not in the labor force",
+                                         "Yes, in the labor force")))
+
+rm(OCC_1950)
+rm(mn_1910)
+rm(bk_1910)
+```
+
+<br>
+
+#### Subsetting samples
+
+```{r}
+s_1850 = combined_1850[sample(NROW(combined_1850), 10000), ]
+s_1880 = combined_1880[sample(NROW(combined_1880), 10000), ]
+s_1910 = combined_1910[sample(NROW(combined_1910), 10000), ]
+```
+
+<br>
+
+### 2. Inspecting Missing Data of Samples {.tabset .tabset-fade}
+
+#### README
+
+* Missing data points were defined as respondents who have 999 in their `occ`, which are blanks. In earlier analyses, a large proportion of each time period were blanks, and was found to be greatly influenced by gender and age.
+
+* Hence, the following three graphs sampled data from each time period, and plotted if the `occ` were 999 (blanks) or not, across age and gender. Blanks were highlighted in Red, while meaningful `occ`s were highlighted in green. Finally, they were facetted on if they were in the labour force.
+
+* It is noted that ideally, the scatterplots in each time period should show all red points under the "N/A" and "No, not in the labor force", and all green points in "Yes, in the labor force". Also, the following analyses were primarily focused on labels (the `occ` codes).
+
+<br>
+
+#### 1850 {.tabset .tabset-fade}
+
+```{r message = FALSE, warning = FALSE}
+s_1850 %>% 
+  mutate(miss_occ = ifelse(occ == 999,1,0)) %>%
+  ggplot(aes(y = age, x = sex, col = factor(miss_occ))) +
+  geom_jitter(alpha = 0.5,
+              size = 1) + 
+  facet_wrap(~labforce) +
+  
+  scale_color_manual(values = col_miss) +
+  
+  labs(y = "Age", x = "Sex",
+       col = "Missing", title = "1850") + 
+  theme(legend.position = "top",
+        panel.grid.major.y = element_blank()) +
+  coord_flip()
+```
+
+* Results show that there are no women who have an occupation code across all three levels of `labor force`
+* There are also some `occ`s under the level of `N/A`, and "No, not in the labor force", which are identified below.
+
+<br>
+
+##### `N/A` and `Male`
+
+```{r}
+s_1850 %>%
+  filter(occ != 999 &
+           labforce == "N/A") %>%
+  group_by(label, occstr, sex) %>%
+  summarise(count = n(), avg_age = mean(age)) %>%
+  arrange(desc(count)) %>%
+  kable() %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "300px")
+```
+
+* Inspecting the green points, we find that most respondents were clerks, and `Other non-occupational response`, followed by generally labourers.
+* The average age was also 15 for all points.
+* It could be that 15 was the minimum age for legal work, but that the census takers did not categorise this group of respondents as being relevant to the labour force question.
+
+<br>
+
+##### `No, not in the labor force` and `Male`
+
+```{r}
+s_1850 %>%
+  filter(occ != 999 &
+           labforce == "No, not in the labor force") %>%
+  group_by(label, occstr) %>%
+  summarise(count = n(), avg_age = mean(age)) %>%
+  arrange(desc(count)) %>%
+  kable() %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "300px")
+```
+
+* A large majority of the green points were categorised as "Other non-occupational response", providing little information, other than that these group of respondents were most probably indeed not in the labour force.
+* There were also some labourers, which could be misclassified.
+* There was a minority of students, which are indeed not in the labour force, but are considred to have an occupation under `occ`. It might be necessary to check if there are students who are in the "Yes, in the labor force" level.
+
+<br>
+
+#### 1880 {.tabset .tabset-fade}
+
+```{r warning = FALSE}
+s_1880 %>% 
+  mutate(miss_occ = ifelse(occ == 999,1,0)) %>%
+  ggplot(aes(y = age, x = sex, col = factor(miss_occ))) +
+  geom_jitter(alpha = 0.5,
+              size = 1) + 
+  facet_wrap(~labforce) +
+  
+  scale_color_manual(values = col_miss) +
+  
+  labs(y = "Age", x = "Sex",
+       col = "Missing", title = "1880") + 
+  theme(legend.position = "top",
+        panel.grid.major.y = element_blank()) +
+  coord_flip()
+```
+
+<br>
+
+##### `N/A`
+
+```{r}
+s_1880 %>%
+  filter(labforce == "N/A") %>%
+  group_by(label,occstr, sex) %>%
+  summarise(count = n(), avg_age = mean(age)) %>%
+  arrange(desc(count)) %>%
+  kable() %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "300px")
+```
+
+* A large majority of the red points (missing `occ`s) were Blanks, which was expected
+* The majority of green points were students in both genders, which potentially shows a disparity in the coding styles between 1850 and 1880, as there were very little students in 1850. 
+* It was also interesting that the average age of `N/A`s were under 15, which supports the earlier speculation that respondents under a certain threshold (possibly 16 years old), were categorised as `N/A` and not considered as officially being in the labour force.
+
+<br>
+
+##### `No, not in the labor force`
+
+```{r}
+s_1880 %>%
+  filter(labforce == "No, not in the labor force") %>%
+  group_by(label, occstr, sex) %>%
+  summarise(count = n(), avg_age = mean(age)) %>%
+  arrange(desc(count)) %>%
+  kable() %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "300px")
+```
+
+* The large red points in the data are to be expected
+* It was interesting that the green point, `Keeping house` was considered to be an occupation (but not in 1850 and 1910), showing an inconsistency in the categorising of `labor force`. 
+* Other green points include `servants` and `Other non-occupational response`.
+
+<br>
+
+#### 1910 {.tabset .tabset-fade}
+
+```{r}
+s_1910 %>% 
+  mutate(miss_occ = ifelse(occ1950 == 999,1,0)) %>%
+  ggplot(aes(y = age, x = sex, col = factor(miss_occ))) +
+  geom_jitter(alpha = 0.5,
+              size = 1) + 
+  facet_wrap(~labor_force) +
+  
+  scale_color_manual(values = col_miss) +
+  
+  labs(y = "Age", x = "Sex",
+       col = "Missing", title = "1910") + 
+  theme(legend.position = "top",
+        panel.grid.major.y = element_blank()) +
+  coord_flip()
+```
+
+<br>
+
+##### `N/A`
+
+```{r}
+s_1910 %>%
+  filter(labor_force == "N/A") %>%
+  group_by(label,sex) %>%
+  summarise(count = n(), avg_age = mean(age)) %>%
+  arrange(desc(count)) %>%
+  kable() %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "300px")
+```
+
+* Similar to 1880, a large proportion of the red points were "Blanks", which was to be expected. This was followed by "Not yet classified" and some school students.
+* The average age of those who had an occupation supports again that the census takers appeared to categorise youths as "N/A" instead of "No, not in the labor force".
+
+<br>
+
+##### `No, not in the labor force`
+
+```{r}
+s_1910 %>%
+  filter(labor_force == "No, not in the labor force") %>%
+  group_by(label,occstr,sex) %>%
+  summarise(count = n(), avg_age = mean(age)) %>%
+  arrange(desc(count)) %>%
+  kable() %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "300px")
+```
+
+* The majority of red points were to be expected and were ideal.
+* The minority of green points were "Gentleman/lady/at leisure", which appears to be some variation of "Retired", given that this group had a much higher average age.
+
+<br>

@@ -1,0 +1,506 @@
+---
+title: "3. Occupation Counts by Year"
+author: "Clinton"
+date: "4 March 2020"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```
+Objective: To provide information of the occupation counts in each year in a table, and in several graphs (top 10, bottom 10, all ordered by size, all ordered by label)
+
+It is noted that there appears to be a large disparity in the labelling between 1850 and 1880 with 1910. This was largely due to different occ codes used by IPUMS between the two time periods. 
+
+The graphs shown are counted by `label` and not `occstr`. `occstr` provides a more consistent coding across the three time periods, but was not done as there are as many as 60 000 unique `occstr` in 1910. Further data cleaning would have to be done if `occstr` is to be graphed in full.
+
+It is recommended that the next steps to unify the coding of `label` or `occstr` throughout the three time periods so that they can be compared against one another.
+```
+
+### 1. Set Up {.tabset .tabset-fade}
+
+#### README
+
+In general, the data sets are relatively large, and take up a large amount of memory after loading. It is recommended that after loading, that the data sets be subsetted or summarised, and unused data frames to be removed.
+
+The code is shown in the next three tabs to show any changes that may have been made. In general, no columns or rows are removed. Filtering occured in the next step.
+
+<br>
+
+#### Loading 1850
+
+```{r message = FALSE, warning = FALSE}
+library(dplyr)
+library(ggplot2)
+library(treemap)
+library(extrafont)
+library(stringr)
+loadfonts()
+library(knitr)
+library(kableExtra)
+library(tidyr)
+
+# Loading
+mn_1850 = readr::read_csv("../Data/census_1850_occ_mn.csv") %>% mutate(city = "Manhattan")
+bk_1850 = readr::read_csv("../Data/census_1850_occ_bk.csv") %>% mutate(city = "Brooklyn")
+OCC_1880 = readr::read_csv("../Data/OCC1880.csv")
+
+# Combining Data
+combined_1850 = rbind(mn_1850, bk_1850) %>% 
+  select(age, sex, marst, race, labforce,
+         occ, city, everything()) %>%
+  left_join(OCC_1880, by = c("occ" = "code")) %>%
+  mutate(race = factor(race,
+                       levels = c(100,120,200,210,300),
+                       labels = c("White", "Black (white)",
+                                  "Black / African American",
+                                  "Mulatto", "American Indian")),
+         labforce = factor(labforce,
+                           levels = c(0,1,2),
+                           labels = c("N/A",
+                                      "No, not in the labor force",
+                                      "Yes, in the labor force")),
+         sex = factor(sex,
+                      levels = c(1,2),
+                      labels = c("Male", "Female")),
+         marst = factor(marst,
+                        levels = c(1:6),
+                        labels = c("Married, spouse present",
+                                   "Married, spouse absent",
+                                   "Separated",
+                                   "Divorced",
+                                   "Widowed",
+                                   "Never married/single")))
+
+# Theme setting for visualisations
+theme_set(theme_minimal() + 
+            theme(panel.grid.minor = element_blank(),
+                  text = element_text(family = "Quicksand",
+                                      colour = "black")))
+col_sex = c("#e21737", "#0b648f")
+col_miss = c("#86b817", "#e53238")
+
+# Saving Memory
+rm(OCC_1880)
+rm(bk_1850)
+rm(mn_1850)
+```
+
+<br>
+
+#### Loading 1880
+
+```{r message = FALSE, warning = FALSE}
+# Loading
+mn_1880 = readr::read_csv("../Data/census_1880_occ_mn.csv") %>% mutate(city = "Manhattan")
+bk_1880 = readr::read_csv("../Data/census_1880_occ_bk.csv") %>% mutate(city = "Brooklyn")
+OCC_1880 = readr::read_csv("../Data/OCC1880.csv")
+
+# Combining Data
+combined_1880 = rbind(mn_1880, bk_1880) %>% 
+  select(age, sex, race, labforce,
+         occ, city, everything()) %>%
+  left_join(OCC_1880, by = c("occ" = "code")) %>%
+  mutate(age = ifelse(age == "Less than 1 year old",
+                      0,
+                      age),
+         age = as.numeric(age))
+
+rm(OCC_1880)
+rm(bk_1880)
+rm(mn_1880)
+```
+
+<br>
+
+#### Loading 1910
+
+```{r message = FALSE, warning = FALSE}
+# Loading
+mn_1910 = readr::read_csv("../Data/census_1910_occ_mn.csv") %>% mutate(city = "Manhattan")
+bk_1910 = readr::read_csv("../Data/census_1910_occ_bk.csv") %>% mutate(city = "Brooklyn")
+OCC_1950 = readr::read_csv("../Data/OCC1950.csv")
+
+# Combining Data
+combined_1910 = rbind(mn_1910, bk_1910) %>%
+  left_join(OCC_1950, by = c("occ1950" = "code")) %>%
+  mutate(sex = factor(sex,
+                      levels = c(1,2),
+                      labels = c("Male", "Female")),
+         labor_force = factor(labor_force,
+                              levels = c(0,1,2),
+                              labels = c("N/A", 
+                                         "No, not in the labor force",
+                                         "Yes, in the labor force")))
+
+rm(OCC_1950)
+rm(mn_1910)
+rm(bk_1910)
+```
+
+<br>
+
+### 2. Occupations in Each Year {.tabset .tabset-fade}
+
+#### README
+
+The following the three tabs are organised, with one for each year. Within each tab, there are five sub-tabs, a scrollable table with the counts of each occupation, two graph of the top and bottom 10 occupations, and two graphs of all occupations by count size and label order.
+
+It is noted that the graphs are all produced using `label` as the variable, not `occstr`.
+
+#### 1850 {.tabset .tabset-fade}
+
+##### Top Jobs
+
+```{r}
+combined_1850 %>%
+  filter(labforce == "Yes, in the labor force") %>%
+  count(label) %>%
+  arrange(desc(n)) %>%
+  kable() %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "300px")
+```
+
+* Laborers appear to be the most popular occupation, followed by Clerks in Stores and Sailors.
+
+<br>
+
+##### Graph of Top 10 Occupations
+
+```{r fig.width = 10}
+combined_1850 %>%
+  filter(labforce == "Yes, in the labor force") %>%
+  count(label) %>%
+  top_n(10, wt = n) %>%
+  
+  ggplot(aes(y = n, x = reorder(label, n))) +
+  geom_col(fill = "#f9a541") + 
+  coord_flip() + 
+  geom_text(aes(label = n),
+            hjust = 0,
+            family = "Quicksand") + 
+  scale_y_continuous(breaks = seq(0, 25000, 5000),
+                     expand = expand_scale(mult = c(0,0.1))) +
+  
+  labs(x = "", y = "Count",
+       title = "Graph of the Top 10 Most Popular Occupations in 1850") +
+  theme(panel.grid.major.y = element_blank(),
+        legend.text = element_text(colour = "black"))
+```
+
+<br>
+
+##### Graph of Bottom 10 Occupations
+
+```{r fig.width = 10}
+combined_1850 %>%
+  filter(labforce == "Yes, in the labor force") %>%
+  count(label) %>%
+  top_n(-10, wt = n) %>%
+  
+  ggplot(aes(y = n, x = reorder(label, n))) +
+  geom_col(fill = "#f9a541") + 
+  coord_flip() + 
+  geom_text(aes(label = n),
+            hjust = 0,
+            family = "Quicksand") + 
+  scale_y_continuous(breaks = seq(0, 3, 1),
+                     expand = expand_scale(mult = c(0,0.1))) +
+  
+  labs(x = "", y = "Count",
+       title = "Graph of the Top 10 Least Popular Occupations in 1850") +
+  theme(panel.grid.major.y = element_blank(),
+        legend.text = element_text(colour = "black"))
+```
+
+<br>
+
+##### Graph of All Occupations by Count
+
+```{r fig.height = 50, fig.width = 10}
+combined_1850 %>%
+  filter(labforce == "Yes, in the labor force") %>%
+  count(label) %>%
+  
+  ggplot(aes(y = n, x = reorder(label, n))) +
+  geom_col(fill = "#f9a541") + 
+  coord_flip() + 
+  geom_text(aes(label = n),
+            hjust = 0,
+            family = "Quicksand") + 
+  scale_y_continuous(breaks = seq(0, 25000, 5000),
+                     expand = expand_scale(mult = c(0,0.1))) +
+  
+  labs(x = "", y = "Count",
+       title = "Graph of All Occupations by Count in 1850") +
+  theme(panel.grid.major.y = element_blank(),
+        legend.text = element_text(colour = "black"))
+```
+
+<br>
+
+##### Graph of All Occupations by Type
+
+```{r fig.height = 50, fig.width = 10}
+combined_1850 %>%
+  filter(labforce == "Yes, in the labor force") %>%
+  count(label) %>%
+  
+  ggplot(aes(y = n, x = label, n)) +
+  geom_col(fill = "#f9a541") + 
+  coord_flip() + 
+  geom_text(aes(label = n),
+            hjust = 0,
+            family = "Quicksand") + 
+  scale_y_continuous(breaks = seq(0, 25000, 5000),
+                     expand = expand_scale(mult = c(0,0.1))) +
+  
+  labs(x = "", y = "Count",
+       title = "Graph of All Occupations by Type in 1850") +
+  theme(panel.grid.major.y = element_blank(),
+        legend.text = element_text(colour = "black"))
+```
+
+<br>
+
+#### 1880 {.tabset .tabset-fade}
+
+##### Top Jobs
+
+```{r fig.width = 10}
+combined_1880 %>%
+  filter(labforce == "Yes, in the labor force" & 
+           label != "Blank") %>%
+  count(label) %>%
+  arrange(desc(n)) %>%
+  kable() %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "300px")
+```
+
+* Domestic servants appear to be the most popular occupation, followed by Clerks in Stores and Sailors.
+
+<br>
+
+##### Graph of Top 10 Occupations
+
+```{r fig.width = 10}
+combined_1880 %>%
+  filter(labforce == "Yes, in the labor force" & 
+           label != "Blank") %>%
+  count(label) %>%
+  top_n(10, wt = n) %>%
+  
+  ggplot(aes(y = n, x = reorder(label, n))) +
+  geom_col(fill = "#bc5090") + 
+  coord_flip() + 
+  geom_text(aes(label = n),
+            hjust = 0,
+            family = "Quicksand") + 
+  scale_y_continuous(breaks = seq(0, 70000, 10000),
+                     expand = expand_scale(mult = c(0,0.1))) +
+  
+  labs(x = "", y = "Count",
+       title = "Graph of the Top 10 Most Popular Occupations in 1880") +
+  theme(panel.grid.major.y = element_blank(),
+        legend.text = element_text(colour = "black"))
+```
+
+<br>
+
+##### Graph of Bottom 10 Occupations
+
+```{r fig.width = 10}
+combined_1880 %>%
+  filter(labforce == "Yes, in the labor force" & 
+           label != "Blank") %>%
+  count(label) %>%
+  top_n(-10, wt = n) %>%
+  
+  ggplot(aes(y = n, x = reorder(label, n))) +
+  geom_col(fill = "#bc5090") + 
+  coord_flip() + 
+  geom_text(aes(label = n),
+            hjust = 0,
+            family = "Quicksand") + 
+  scale_y_continuous(breaks = seq(0, 4, 1),
+                     expand = expand_scale(mult = c(0,0.1))) +
+  
+  labs(x = "", y = "Count",
+       title = "Graph of the Top 10 Least Popular Occupations in 1880") +
+  theme(panel.grid.major.y = element_blank(),
+        legend.text = element_text(colour = "black"))
+```
+
+<br>
+
+##### Graph of All Occupations by Count
+
+```{r fig.height = 50, fig.width = 10}
+combined_1880 %>%
+  filter(labforce == "Yes, in the labor force" & 
+           label != "Blank") %>%
+  count(label) %>%
+  
+  ggplot(aes(y = n, x = reorder(label, n))) +
+  geom_col(fill = "#bc5090") + 
+  coord_flip() + 
+  geom_text(aes(label = n),
+            hjust = 0,
+            family = "Quicksand") + 
+  scale_y_continuous(breaks = seq(0, 70000, 10000),
+                     expand = expand_scale(mult = c(0,0.1))) +
+  
+  labs(x = "", y = "Count",
+       title = "Graph of All Occupations by Count in 1880") +
+  theme(panel.grid.major.y = element_blank(),
+        legend.text = element_text(colour = "black"))
+```
+
+<br>
+
+##### Graph of All Occupations by Type
+
+```{r fig.height = 50, fig.width = 10}
+combined_1880 %>%
+  filter(labforce == "Yes, in the labor force") %>%
+  count(label) %>%
+  
+  ggplot(aes(y = n, x = label, n)) +
+  geom_col(fill = "#bc5090") + 
+  coord_flip() + 
+  geom_text(aes(label = n),
+            hjust = 0,
+            family = "Quicksand") + 
+  scale_y_continuous(breaks = seq(0, 70000, 10000),
+                     expand = expand_scale(mult = c(0,0.1))) +
+  
+  labs(x = "", y = "Count",
+       title = "Graph of All Occupations by Type in 1880") +
+  theme(panel.grid.major.y = element_blank(),
+        legend.text = element_text(colour = "black"))
+```
+
+<br>
+
+#### 1910 {.tabset .tabset-fade}
+
+##### Top Jobs
+
+```{r}
+combined_1910 %>%
+  filter(labor_force == "Yes, in the labor force" & 
+           label != "Not yet classified") %>%
+  count(label) %>%
+  arrange(desc(n)) %>%
+  kable() %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "300px")
+```
+
+* Domestic servants appear to be the most popular occupation, followed by Clerks in Stores and Sailors.
+
+<br>
+
+##### Graph of Top 10 Occupations
+
+```{r fig.width = 10}
+combined_1910 %>%
+  filter(labor_force == "Yes, in the labor force" & 
+           label != "Not yet classified") %>%
+  count(label) %>%
+  top_n(10, wt = n) %>%
+  
+  ggplot(aes(y = n, x = reorder(label, n))) +
+  geom_col(fill = "#003f5c") + 
+  coord_flip() + 
+  geom_text(aes(label = n),
+            hjust = 0,
+            family = "Quicksand") + 
+  scale_y_continuous(breaks = seq(0, 200000, 20000),
+                     expand = expand_scale(mult = c(0,0.1))) +
+  
+  labs(x = "", y = "Count",
+       title = "Graph of the Top 10 Most Popular Occupations in 1910") +
+  theme(panel.grid.major.y = element_blank(),
+        legend.text = element_text(colour = "black"))
+```
+
+<br>
+
+##### Graph of Bottom 10 Occupations
+
+```{r fig.width = 10}
+combined_1910 %>%
+  filter(labor_force == "Yes, in the labor force" & 
+           label != "Not yet classified") %>%
+  count(label) %>%
+  top_n(-10, wt = n) %>%
+  
+  ggplot(aes(y = n, x = reorder(label, n))) +
+  geom_col(fill = "#003f5c") + 
+  coord_flip() + 
+  geom_text(aes(label = n),
+            hjust = 0,
+            family = "Quicksand") + 
+  scale_y_continuous(breaks = seq(0, 11, 1),
+                     expand = expand_scale(mult = c(0,0.1))) +
+  
+  labs(x = "", y = "Count",
+       title = "Graph of the Top 10 Least Popular Occupations in 1910") +
+  theme(panel.grid.major.y = element_blank(),
+        legend.text = element_text(colour = "black"))
+```
+
+<br>
+
+##### Graph of All Occupations by Count
+
+```{r fig.height = 50, fig.width = 10}
+combined_1910 %>%
+  filter(labor_force == "Yes, in the labor force" & 
+           label != "Not yet classified") %>%
+  count(label) %>%
+  
+  ggplot(aes(y = n, x = reorder(label, n))) +
+  geom_col(fill = "#003f5c") + 
+  coord_flip() + 
+  geom_text(aes(label = n),
+            hjust = 0,
+            family = "Quicksand") + 
+  scale_y_continuous(breaks = seq(0, 200000, 20000),
+                     expand = expand_scale(mult = c(0,0.1))) +
+  
+  labs(x = "", y = "Count",
+       title = "Graph of All Occupations by Count in 1910") +
+  theme(panel.grid.major.y = element_blank(),
+        legend.text = element_text(colour = "black"))
+```
+
+<br>
+
+##### Graph of All Occupations by Type
+
+```{r fig.height = 50, fig.width = 10}
+combined_1910 %>%
+  filter(labor_force == "Yes, in the labor force" & 
+           label != "Not yet classified") %>%
+  count(label) %>%
+  
+  ggplot(aes(y = n, x = label, n)) +
+  geom_col(fill = "#003f5c") + 
+  coord_flip() + 
+  geom_text(aes(label = n),
+            hjust = 0,
+            family = "Quicksand") + 
+  scale_y_continuous(breaks = seq(0, 200000, 20000),
+                     expand = expand_scale(mult = c(0,0.1))) +
+  
+  labs(x = "", y = "Count",
+       title = "Graph of All Occupations by Type in 1910") +
+  theme(panel.grid.major.y = element_blank(),
+        legend.text = element_text(colour = "black"))
+```
+
+<br>
