@@ -1,8 +1,11 @@
 Data/
 Scripts/1_Initial_EDA_cache
 Scripts/1_Initial_EDA_files
+Scripts/2_Missing_label_analysis_cache
+Scripts/2_Missing_label_analysis_files
 
 .Rproj.user/
 
 .Rhistory
 *.Rproj
+Scripts/99_General_trends.html
