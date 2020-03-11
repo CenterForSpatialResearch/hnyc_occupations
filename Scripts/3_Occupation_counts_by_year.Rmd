@@ -156,8 +156,15 @@ It is noted that the graphs are all produced using `label` as the variable, not 
 combined_1850 %>%
   filter(labforce == "Yes, in the labor force") %>%
   count(label) %>%
+  mutate(perc_lf = round(n / sum(combined_1850$labforce == "Yes, in the labor force") * 100,
+                         digits = 2),
+         perc_pop = round(n / NROW(combined_1850) * 100, 
+                          digits = 2)) %>%
   arrange(desc(n)) %>%
-  kable() %>%
+  kable(col.names = c("Occupation",
+                      "Count",
+                      "Percentage of labour force",
+                      "Percentage of population")) %>%
   kable_styling() %>%
   scroll_box(width = "100%", height = "300px")
 ```
@@ -172,18 +179,21 @@ combined_1850 %>%
 combined_1850 %>%
   filter(labforce == "Yes, in the labor force") %>%
   count(label) %>%
+  mutate(perc_lf = round(n / sum(combined_1850$labforce == "Yes, in the labor force") * 100,
+                         digits = 2),
+         text = paste0(n," (", perc_lf, "%)")) %>%
   top_n(10, wt = n) %>%
   
   ggplot(aes(y = n, x = reorder(label, n))) +
   geom_col(fill = "#f9a541") + 
   coord_flip() + 
-  geom_text(aes(label = n),
+  geom_text(aes(label = text),
             hjust = 0,
             family = "Quicksand") + 
   scale_y_continuous(breaks = seq(0, 25000, 5000),
-                     expand = expand_scale(mult = c(0,0.1))) +
+                     expand = expand_scale(mult = c(0,0.2))) +
   
-  labs(x = "", y = "Count",
+  labs(x = "Occupation (Percentage of labour force)", y = "Count",
        title = "Graph of the Top 10 Most Popular Occupations in 1850") +
   theme(panel.grid.major.y = element_blank(),
         legend.text = element_text(colour = "black"))
@@ -208,11 +218,13 @@ combined_1850 %>%
   scale_y_continuous(breaks = seq(0, 3, 1),
                      expand = expand_scale(mult = c(0,0.1))) +
   
-  labs(x = "", y = "Count",
+  labs(x = "Occupation", y = "Count",
        title = "Graph of the Top 10 Least Popular Occupations in 1850") +
   theme(panel.grid.major.y = element_blank(),
         legend.text = element_text(colour = "black"))
 ```
+
+* Percentages are not included as the values are too small
 
 <br>
 
@@ -222,17 +234,20 @@ combined_1850 %>%
 combined_1850 %>%
   filter(labforce == "Yes, in the labor force") %>%
   count(label) %>%
+  mutate(perc_lf = round(n / sum(combined_1850$labforce == "Yes, in the labor force") * 100,
+                         digits = 2),
+         text = paste0(n," (", perc_lf, "%)")) %>%
   
   ggplot(aes(y = n, x = reorder(label, n))) +
   geom_col(fill = "#f9a541") + 
   coord_flip() + 
-  geom_text(aes(label = n),
+  geom_text(aes(label = text),
             hjust = 0,
             family = "Quicksand") + 
   scale_y_continuous(breaks = seq(0, 25000, 5000),
-                     expand = expand_scale(mult = c(0,0.1))) +
+                     expand = expand_scale(mult = c(0,0.2))) +
   
-  labs(x = "", y = "Count",
+  labs(x = "Occupation", y = "Count",
        title = "Graph of All Occupations by Count in 1850") +
   theme(panel.grid.major.y = element_blank(),
         legend.text = element_text(colour = "black"))
@@ -246,15 +261,18 @@ combined_1850 %>%
 combined_1850 %>%
   filter(labforce == "Yes, in the labor force") %>%
   count(label) %>%
+  mutate(perc_lf = round(n / sum(combined_1850$labforce == "Yes, in the labor force") * 100,
+                         digits = 2),
+         text = paste0(n," (", perc_lf, "%)")) %>%
   
   ggplot(aes(y = n, x = label, n)) +
   geom_col(fill = "#f9a541") + 
   coord_flip() + 
-  geom_text(aes(label = n),
+  geom_text(aes(label = text),
             hjust = 0,
             family = "Quicksand") + 
   scale_y_continuous(breaks = seq(0, 25000, 5000),
-                     expand = expand_scale(mult = c(0,0.1))) +
+                     expand = expand_scale(mult = c(0,0.2))) +
   
   labs(x = "", y = "Count",
        title = "Graph of All Occupations by Type in 1850") +
@@ -273,8 +291,15 @@ combined_1880 %>%
   filter(labforce == "Yes, in the labor force" & 
            label != "Blank") %>%
   count(label) %>%
+  mutate(perc_lf = round(n / sum(combined_1880$labforce == "Yes, in the labor force") * 100,
+                         digits = 2),
+         perc_pop = round(n / NROW(combined_1880) * 100, 
+                          digits = 2)) %>%
   arrange(desc(n)) %>%
-  kable() %>%
+  kable(col.names = c("Occupation",
+                      "Count",
+                      "Percentage of labour force",
+                      "Percentage of population")) %>%
   kable_styling() %>%
   scroll_box(width = "100%", height = "300px")
 ```
@@ -290,18 +315,21 @@ combined_1880 %>%
   filter(labforce == "Yes, in the labor force" & 
            label != "Blank") %>%
   count(label) %>%
+  mutate(perc_lf = round(n / sum(combined_1880$labforce == "Yes, in the labor force") * 100,
+                         digits = 2),
+         text = paste0(n," (", perc_lf, "%)")) %>%
   top_n(10, wt = n) %>%
   
   ggplot(aes(y = n, x = reorder(label, n))) +
   geom_col(fill = "#bc5090") + 
   coord_flip() + 
-  geom_text(aes(label = n),
+  geom_text(aes(label = text),
             hjust = 0,
             family = "Quicksand") + 
   scale_y_continuous(breaks = seq(0, 70000, 10000),
-                     expand = expand_scale(mult = c(0,0.1))) +
+                     expand = expand_scale(mult = c(0,0.2))) +
   
-  labs(x = "", y = "Count",
+  labs(x = "Occupation (Percentage of labour force)", y = "Count",
        title = "Graph of the Top 10 Most Popular Occupations in 1880") +
   theme(panel.grid.major.y = element_blank(),
         legend.text = element_text(colour = "black"))
@@ -327,11 +355,13 @@ combined_1880 %>%
   scale_y_continuous(breaks = seq(0, 4, 1),
                      expand = expand_scale(mult = c(0,0.1))) +
   
-  labs(x = "", y = "Count",
+  labs(x = "Occupation", y = "Count",
        title = "Graph of the Top 10 Least Popular Occupations in 1880") +
   theme(panel.grid.major.y = element_blank(),
         legend.text = element_text(colour = "black"))
 ```
+
+* Percentages are not included as the values are too small
 
 <br>
 
@@ -342,15 +372,18 @@ combined_1880 %>%
   filter(labforce == "Yes, in the labor force" & 
            label != "Blank") %>%
   count(label) %>%
+  mutate(perc_lf = round(n / sum(combined_1880$labforce == "Yes, in the labor force") * 100,
+                         digits = 2),
+         text = paste0(n," (", perc_lf, "%)")) %>%
   
   ggplot(aes(y = n, x = reorder(label, n))) +
   geom_col(fill = "#bc5090") + 
   coord_flip() + 
-  geom_text(aes(label = n),
+  geom_text(aes(label = text),
             hjust = 0,
             family = "Quicksand") + 
   scale_y_continuous(breaks = seq(0, 70000, 10000),
-                     expand = expand_scale(mult = c(0,0.1))) +
+                     expand = expand_scale(mult = c(0,0.2))) +
   
   labs(x = "", y = "Count",
        title = "Graph of All Occupations by Count in 1880") +
@@ -366,15 +399,18 @@ combined_1880 %>%
 combined_1880 %>%
   filter(labforce == "Yes, in the labor force") %>%
   count(label) %>%
+  mutate(perc_lf = round(n / sum(combined_1880$labforce == "Yes, in the labor force") * 100,
+                         digits = 2),
+         text = paste0(n," (", perc_lf, "%)")) %>%
   
   ggplot(aes(y = n, x = label, n)) +
   geom_col(fill = "#bc5090") + 
   coord_flip() + 
-  geom_text(aes(label = n),
+  geom_text(aes(label = text),
             hjust = 0,
             family = "Quicksand") + 
   scale_y_continuous(breaks = seq(0, 70000, 10000),
-                     expand = expand_scale(mult = c(0,0.1))) +
+                     expand = expand_scale(mult = c(0,0.2))) +
   
   labs(x = "", y = "Count",
        title = "Graph of All Occupations by Type in 1880") +
@@ -393,8 +429,15 @@ combined_1910 %>%
   filter(labor_force == "Yes, in the labor force" & 
            label != "Not yet classified") %>%
   count(label) %>%
+  mutate(perc_lf = round(n / sum(combined_1910$labor_force == "Yes, in the labor force") * 100,
+                         digits = 2),
+         perc_pop = round(n / NROW(combined_1910) * 100, 
+                          digits = 2)) %>%
   arrange(desc(n)) %>%
-  kable() %>%
+  kable(col.names = c("Occupation",
+                      "Count",
+                      "Percentage of labour force",
+                      "Percentage of population")) %>%
   kable_styling() %>%
   scroll_box(width = "100%", height = "300px")
 ```
@@ -410,18 +453,21 @@ combined_1910 %>%
   filter(labor_force == "Yes, in the labor force" & 
            label != "Not yet classified") %>%
   count(label) %>%
+  mutate(perc_lf = round(n / sum(combined_1910$labor_force == "Yes, in the labor force") * 100,
+                         digits = 2),
+         text = paste0(n," (", perc_lf, "%)")) %>%
   top_n(10, wt = n) %>%
   
   ggplot(aes(y = n, x = reorder(label, n))) +
   geom_col(fill = "#003f5c") + 
   coord_flip() + 
-  geom_text(aes(label = n),
+  geom_text(aes(label = text),
             hjust = 0,
             family = "Quicksand") + 
   scale_y_continuous(breaks = seq(0, 200000, 20000),
-                     expand = expand_scale(mult = c(0,0.1))) +
+                     expand = expand_scale(mult = c(0,0.25))) +
   
-  labs(x = "", y = "Count",
+  labs(x = "Occupation (Percentage of labour force)", y = "Count",
        title = "Graph of the Top 10 Most Popular Occupations in 1910") +
   theme(panel.grid.major.y = element_blank(),
         legend.text = element_text(colour = "black"))
@@ -453,6 +499,8 @@ combined_1910 %>%
         legend.text = element_text(colour = "black"))
 ```
 
+* Percentages are not included as the values are too small
+
 <br>
 
 ##### Graph of All Occupations by Count
@@ -462,15 +510,18 @@ combined_1910 %>%
   filter(labor_force == "Yes, in the labor force" & 
            label != "Not yet classified") %>%
   count(label) %>%
+  mutate(perc_lf = round(n / sum(combined_1910$labor_force == "Yes, in the labor force") * 100,
+                         digits = 2),
+         text = paste0(n," (", perc_lf, "%)")) %>%
   
   ggplot(aes(y = n, x = reorder(label, n))) +
   geom_col(fill = "#003f5c") + 
   coord_flip() + 
-  geom_text(aes(label = n),
+  geom_text(aes(label = text),
             hjust = 0,
             family = "Quicksand") + 
   scale_y_continuous(breaks = seq(0, 200000, 20000),
-                     expand = expand_scale(mult = c(0,0.1))) +
+                     expand = expand_scale(mult = c(0,0.25))) +
   
   labs(x = "", y = "Count",
        title = "Graph of All Occupations by Count in 1910") +
@@ -487,15 +538,18 @@ combined_1910 %>%
   filter(labor_force == "Yes, in the labor force" & 
            label != "Not yet classified") %>%
   count(label) %>%
+  mutate(perc_lf = round(n / sum(combined_1910$labor_force == "Yes, in the labor force") * 100,
+                         digits = 2),
+         text = paste0(n," (", perc_lf, "%)")) %>%
   
   ggplot(aes(y = n, x = label, n)) +
   geom_col(fill = "#003f5c") + 
   coord_flip() + 
-  geom_text(aes(label = n),
+  geom_text(aes(label = text),
             hjust = 0,
             family = "Quicksand") + 
   scale_y_continuous(breaks = seq(0, 200000, 20000),
-                     expand = expand_scale(mult = c(0,0.1))) +
+                     expand = expand_scale(mult = c(0,0.25))) +
   
   labs(x = "", y = "Count",
        title = "Graph of All Occupations by Type in 1910") +

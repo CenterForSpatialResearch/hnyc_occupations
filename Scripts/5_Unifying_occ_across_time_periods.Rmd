@@ -1,0 +1,327 @@
+---
+title: "Unifying OCC across Time Periods"
+author: "Clinton"
+date: "8 March 2020"
+output: html_document
+---
+
+<br>
+
+```
+Objective: To come up with a unified OCC code, allowing for comparisons of occupation counts across the three time periods of 1850, 1880 and 1910.
+
+An analysis of the viability of `occ` (found in 1850 and 1880 only), `occ1950` and `occstr` was considered. Subsequently, it is proposed that `occ1950` which is found in all three time periods to be used when comparing between occupations across time as it is a common variable found between them.
+
+The respective `occ`s in 1850 and 1880 are not recommended as their coding were unique to that time period, which we would otherwise need to come up with a new schema to combine `occ` and `occ1950` (since there is only `occ1950` and no `occ` in 1910).
+
+`occstr` is also not recommended due to two reasons. First, a large number of unique occupations are due to misspellings. Second, while some observation are more detailed, the level of detail is difficult to be utilised meaningfully. For example, a "teacher of the fourth grade" may provie more information than just "teacher", but given that there is just one observation for this `occstr` and that most teachers do not have their class grades, it is difficult to meaningfully utilise this information.
+```
+
+<br>
+
+### 1. Set Up {.tabset .tabset-fade}
+
+#### README
+
+In general, the data sets are relatively large, and take up a large amount of memory after loading. It is recommended that after loading, that the data sets be subsetted or summarised, and unused data frames to be removed.
+
+The code is shown in the next three tabs to show any changes that may have been made. In general, no columns or rows are removed. Filtering occured in the next step.
+
+<br>
+
+#### Loading 1850
+
+```{r message = FALSE, warning = FALSE}
+library(dplyr)
+library(ggplot2)
+library(treemap)
+library(extrafont)
+library(stringr)
+loadfonts()
+library(knitr)
+library(kableExtra)
+library(tidyr)
+
+# Loading
+mn_1850 = readr::read_csv("../Data/census_1850_occ_mn.csv") %>% mutate(city = "Manhattan")
+bk_1850 = readr::read_csv("../Data/census_1850_occ_bk.csv") %>% mutate(city = "Brooklyn")
+OCC_1880 = readr::read_csv("../Data/OCC1880.csv")
+OCC_1950 = readr::read_csv("../Data/OCC1950.csv")
+
+# Combining Data
+combined_1850 = rbind(mn_1850, bk_1850) %>% 
+  select(age, sex, marst, race, labforce,
+         occ, city, everything()) %>%
+  left_join(OCC_1880, by = c("occ" = "code")) %>%
+  left_join(OCC_1950, by = c("occ1950" = "code")) %>%
+  mutate(race = factor(race,
+                       levels = c(100,120,200,210,300),
+                       labels = c("White", "Black (white)",
+                                  "Black / African American",
+                                  "Mulatto", "American Indian")),
+         labforce = factor(labforce,
+                           levels = c(0,1,2),
+                           labels = c("N/A",
+                                      "No, not in the labor force",
+                                      "Yes, in the labor force")),
+         sex = factor(sex,
+                      levels = c(1,2),
+                      labels = c("Male", "Female")),
+         marst = factor(marst,
+                        levels = c(1:6),
+                        labels = c("Married, spouse present",
+                                   "Married, spouse absent",
+                                   "Separated",
+                                   "Divorced",
+                                   "Widowed",
+                                   "Never married/single")))
+
+# Theme setting for visualisations
+theme_set(theme_minimal() + 
+            theme(panel.grid.minor = element_blank(),
+                  text = element_text(family = "Quicksand",
+                                      colour = "black")))
+col_sex = c("#e21737", "#0b648f")
+col_miss = c("#86b817", "#e53238")
+
+# Saving Memory
+rm(bk_1850)
+rm(mn_1850)
+```
+
+<br>
+
+#### Loading 1880
+
+```{r message = FALSE, warning = FALSE}
+# Loading
+mn_1880 = readr::read_csv("../Data/census_1880_occ_mn.csv") %>% mutate(city = "Manhattan")
+bk_1880 = readr::read_csv("../Data/census_1880_occ_bk.csv") %>% mutate(city = "Brooklyn")
+
+# Combining Data
+combined_1880 = rbind(mn_1880, bk_1880) %>% 
+  select(age, sex, race, labforce,
+         occ, city, everything()) %>%
+  left_join(OCC_1880, by = c("occ" = "code")) %>%
+  mutate(age = ifelse(age == "Less than 1 year old",
+                      0,
+                      age),
+         age = as.numeric(age))
+
+rm(OCC_1880)
+rm(bk_1880)
+rm(mn_1880)
+```
+
+<br>
+
+#### Loading 1910
+
+```{r message = FALSE, warning = FALSE}
+# Loading
+mn_1910 = readr::read_csv("../Data/census_1910_occ_mn.csv") %>% mutate(city = "Manhattan")
+bk_1910 = readr::read_csv("../Data/census_1910_occ_bk.csv") %>% mutate(city = "Brooklyn")
+OCC_1950 = readr::read_csv("../Data/OCC1950.csv")
+
+# Combining Data
+combined_1910 = rbind(mn_1910, bk_1910) %>%
+  left_join(OCC_1950, by = c("occ1950" = "code")) %>%
+  mutate(sex = factor(sex,
+                      levels = c(1,2),
+                      labels = c("Male", "Female")),
+         labor_force = factor(labor_force,
+                              levels = c(0,1,2),
+                              labels = c("N/A", 
+                                         "No, not in the labor force",
+                                         "Yes, in the labor force")))
+
+rm(OCC_1950)
+rm(mn_1910)
+rm(bk_1910)
+```
+
+<br>
+
+### 2. Visualisation of Inconsistencies
+
+| Year | Variable | Count | Remarks | Information in metadata | 
+| ----- | ----- | ----- | ----- | ----- |
+| 1850 | occ | 262 | Code | Occupation |
+| 1850 | occ1950 | 192 | Code | Occupation, 1950 basis |
+| 1850 | occstr | 6641 | Actual occupation, not code | Occupation, alphabetic string |
+| 1880 | occ | 274 | Code | Occupation |
+| 1880 | occ1950 | 239 | Actual occupation, not code | Occupation, 1950 basis |
+| 1880 | occstr | 79860 | Actual occupation, not code | Occupation, alphabetic string | 
+| 1880 | occhisco | 628 | Actual occupation, not code | Occupation, HISCO classification |
+| 1910 | occ1950 | 220 | Code | Occupation, 1950 basis |
+| 1910 | occstr | 68725 | Actual occupation, not code | Occupation, alphabetic string |
+
+From the table above, several options of using a consistent occupation coding scheme across the three years are available:
+* Using `occ1950` which is consistent across all three years
+* Using `occstr` which appears in all three years, but unsure if consistent across all three years
+* Creating a new coding schema across all three years
+
+<br>
+
+### 3. Comparing `occ1950` to `occ` {.tabset .tabset-fade}
+
+#### 1850
+
+<br>
+
+Given that `occ` has 262 unique occupations, while `occ1950` has 192 unique occupations, it suggests that several occupations in `occ` are grouped together into `occ1950` in 1850.
+
+<br>
+
+```{r echo = FALSE}
+combined_1850 %>%
+  group_by(occ_label, occ1950_label) %>%
+  summarise(count = n()) %>%
+  arrange(desc(count, occ_label)) %>%
+  .[1:100, ] %>%
+  kable() %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "300px")
+```
+
+From the table above, we can see that in general, the top occupations would not be grouped together. Hence, using `occ1950` might be a viable occupation category.
+
+<br>
+
+#### 1880
+
+Given that `occ` has 274 unique occupations, while `occ1950` has 239 unique occupations, it suggests that several occupations in `occ` are grouped together into `occ1950` in 1880.
+
+<br>
+
+```{r echo = FALSE}
+combined_1880 %>%
+  group_by(occ_label, occ1950) %>%
+  summarise(count = n()) %>%
+  arrange(desc(count, occ_label)) %>%
+  kable() %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "300px")
+```
+
+<br>
+
+From the table above, we can see that in general, the top occupations would not be grouped together. Hence, using `occ1950` might be a viable occupation category.
+
+<br>
+
+### 4. Comparing `occ1950` to `occstr` {.tabset .tabset-fade}
+
+From the table prior, it appears that `occstr` provides a much higher detailed description of occupation, as compared to just `occ`. However, this increased level of description can become a bit too much as now there are too many dimensions.
+
+In the tables below, only the top and bottom 100 counts are shown as the full table is too large.
+
+<br>
+
+#### 1850
+
+__Top 100 Occupations__
+
+```{r echo = FALSE}
+combined_1850 %>%
+  group_by(occ1950_label, occstr) %>%
+  summarise(count = n()) %>%
+  arrange(desc(count)) %>%
+  head(100) %>%
+  kable() %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "300px")
+```
+
+<br>
+
+___Bottom 100 Occupations__
+
+```{r echo = FALSE}
+combined_1850 %>%
+  group_by(occ1950_label, occstr) %>%
+  summarise(count = n()) %>%
+  arrange(desc(count)) %>%
+  tail(100) %>%
+  kable() %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "300px")
+```
+
+<br>
+
+From the table above, it appears that `occ1950` and `occstr` do not differ in terms of the most popular occupations. Scrolling to the bottom of the table shows that a large majority of the unique occupations of `occstr` is from the misspellings or question marks, and to some extent detailed occupation. Hence, `occ1950` appears to be a suitable occupation category over `occstr`.
+
+<br>
+
+#### 1880
+
+__Top 100 Occupations__
+
+```{r echo = FALSE}
+combined_1880 %>%
+  group_by(occ1950, occstr) %>%
+  summarise(count = n()) %>%
+  arrange(desc(count)) %>%
+  head(100) %>%
+  kable() %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "300px")
+```
+
+<br>
+
+__Bottom 100 Occupations__
+
+```{r echo = FALSE}
+combined_1880 %>%
+  group_by(occ1950, occstr) %>%
+  summarise(count = n()) %>%
+  arrange(desc(count)) %>%
+  tail(100) %>%
+  kable() %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "300px")
+```
+
+<br>
+
+Similar to 1850, the `occstr` in 1880 appear to be filled with misspellings and question marks. While it provides more details in some cases, the counts are often too low to be used meaningfully.
+
+<br>
+
+#### 1910
+
+__Top 100 Occupations__
+
+```{r echo = FALSE}
+combined_1910 %>%
+  group_by(occ1950_label, occstr) %>%
+  summarise(count = n()) %>%
+  arrange(desc(count)) %>%
+  head(100) %>%
+  kable() %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "300px")
+```
+
+<br>
+
+__Bottom 100 Occupations__
+
+```{r echo = FALSE}
+combined_1910 %>%
+  group_by(occ1950_label, occstr) %>%
+  summarise(count = n()) %>%
+  arrange(desc(count)) %>%
+  tail(100) %>%
+  kable() %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "300px")
+```
+
+<br>
+
+Similar to 1850 and 1880, the `occstr` in 1910 appear to be filled with misspellings and question marks. While it provides more details in some cases, the counts are often too low to be used meaningfully.
+
+<br>
