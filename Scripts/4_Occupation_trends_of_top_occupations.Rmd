@@ -11,6 +11,8 @@ editor_options:
 Objective: To visualise how the occupations have changed across the three time periods of 1850, 1880 and 1910.
 
 The graphing process showed that there were some inconsistencies with the coding of `occstr`, such as "DRESSMAKER" and "DRESS MAKER" which need to be addressed.
+
+OCC1950 was incorporated to compare a coded variable consistent across all three census years.
 ```
 
 ### 1. Set Up {.tabset .tabset-fade}
@@ -510,6 +512,8 @@ top10_combined %>%
 * The table above indicates 1 if the occupation was a top 10 occupation in that time period, and 0 otherwise.
 * It shows that some occupations became only popular in later time periods, such as "DRIVER", while other occupations were only popular in earlier time periods such as "GROCER".
 
+<br>
+
 #### Changes in Top 10 Occupations (Dot Plot)
 
 ```{r fig.height = 6, fig.width = 10}
@@ -600,6 +604,8 @@ This section investigated how occupations have changed across the three time per
 Again, as with the previous section of Occupation counts by year, the only respondents who were in the "Yes, in the labor force" level of `labforce` were included.
 
 Specifically, the following tabs investigate the top 10 occupations of each time period, and a list of them is shown in the next tab.
+
+<br>
 
 #### Top 10 Jobs of each year, across time
 
@@ -793,6 +799,8 @@ Again, as with the previous section of Occupation counts by year, the only respo
 
 Specifically, the following tabs investigate the top 10 occupations of each time period, and a list of them is shown in the next tab.
 
+<br>
+
 #### Top 10 Jobs of each year, across time
 
 The tabe below shows the top 10 jobs in each time period
@@ -922,6 +930,8 @@ top10_combined %>%
 
 * The table above indicates 1 if the occupation was a top 10 occupation in that time period, and 0 otherwise.
 
+<br>
+
 #### Changes in Top 10 Occupations (Dot Plot)
 
 ```{r fig.height = 6, fig.width = 10}
@@ -996,6 +1006,5 @@ top10_combined %>%
        caption = "Note: Black borders were if the occupation was a top 10 occupation in that time\nperiod. Occupations areordered by the size of change from 1850 to 1910") +
   theme(legend.position = "none")
 ```
-
 <br>
 
