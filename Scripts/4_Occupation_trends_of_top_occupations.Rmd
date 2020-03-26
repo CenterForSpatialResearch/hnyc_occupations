@@ -1,7 +1,7 @@
 ---
 title: "4. Occupation Trends of Top Occupations"
-author: "Clinton"
-date: "5 March 2020"
+author: "Clinton + Dan"
+date: "26 March 2020"
 output: html_document
 editor_options: 
   chunk_output_type: console
@@ -34,6 +34,7 @@ library(tidyr)
 mn_1850 = readr::read_csv("../Data/census_1850_occ_mn.csv") %>% mutate(city = "Manhattan")
 bk_1850 = readr::read_csv("../Data/census_1850_occ_bk.csv") %>% mutate(city = "Brooklyn")
 OCC_1880 = readr::read_csv("../Data/OCC1880.csv")
+OCC_1950 = readr::read_csv("../Data/OCC1950.csv")
 
 # Combining Data
 combined_1850 = rbind(mn_1850, bk_1850) %>% 
@@ -65,7 +66,7 @@ combined_1850 = rbind(mn_1850, bk_1850) %>%
 # Theme setting for visualisations
 theme_set(theme_minimal() + 
             theme(panel.grid.minor = element_blank(),
-                  text = element_text(family = "Quicksand",
+                  text = element_text(family = "Arial",
                                       colour = "black")))
 col_sex = c("#e21737", "#0b648f")
 col_miss = c("#86b817", "#e53238")
@@ -348,6 +349,653 @@ top10_combined %>%
 
 <br>
 
+### 3. Analysis of Occupation Trends (%) {.tabset .tabset-fade}
 
+#### README
 
+This section investigated how occupations have changed across the three time periods of 1850, 1880 and 1910. To this end, `occstr` was preferred over `label` due to the consistent categorising of occupations.
+
+Again, as with the previous section of Occupation counts by year, the only respondents who were in the "Yes, in the labor force" level of `labforce` were included.
+
+Specifically, the following tabs investigate the top 10 occupations of each time period, and a list of them is shown in the next tab.
+
+#### Top 10 Jobs of each year, across time
+
+The tabe below shows the top 10 jobs in each time period
+
+```{r}
+top10_1850 = combined_1850 %>%
+  filter(labforce == "Yes, in the labor force") %>%
+  count(occstr) %>%
+  mutate(perc_lf = round(n / sum(combined_1850$labforce == "Yes, in the labor force") * 100,
+                         digits = 2),
+         perc_pop = round(n / NROW(combined_1850) * 100, 
+                          digits = 2)) %>% 
+  arrange(desc(n)) %>%
+  .[1:10, "occstr"]
+
+top10_1880 = combined_1880 %>%
+  filter(labforce == "Yes, in the labor force") %>%
+  count(occstr) %>%
+  mutate(perc_lf = round(n / sum(combined_1880$labforce == "Yes, in the labor force") * 100,
+                         digits = 2),
+         perc_pop = round(n / NROW(combined_1880) * 100, 
+                          digits = 2)) %>%
+  arrange(desc(n)) %>% 
+    .[1:10, "occstr"]
+
+top10_1910 = combined_1910 %>%
+  filter(labor_force == "Yes, in the labor force" & 
+           !is.na(occstr)) %>%
+  count(occstr) %>%
+  mutate(perc_lf = round(n / sum(combined_1910$labor_force == "Yes, in the labor force") * 100,
+                         digits = 2),
+         perc_pop = round(n / NROW(combined_1910) * 100, 
+                          digits = 2)) %>%
+  arrange(desc(n)) %>%
+  .[1:10, "occstr"]
+
+cbind(top10_1850, top10_1880, top10_1910) %>% 
+  kable(col.names = c("1850", "1880", "1910")) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "300px")
+```
+
+<br>
+
+* From the table of top 10 occupations, we can see that aside from the top jobs being laborers and clerks, there is an inconsistency with the coding of `occstr`in 1880, such as "DRESSMAKER" and "DRESS MAKER".
+
+* Subsequently, the code was re-ran, to count Dress Maker and Dressmaker together, along with Clerk and Clerk in store. On this run, further ammendments were added, such as to add Domestic Servant and Servant together. The code is not shown, but the new results are:
+
+<br>
+
+```{r echo = FALSE}
+top10_1880 = combined_1880 %>%
+  filter(labforce == "Yes, in the labor force") %>%
+  mutate(occstr = ifelse(occstr == "DRESS MAKER",
+                         "DRESSMAKER",
+                         occstr),
+         occstr = ifelse(occstr == "CLERK IN STORE",
+                         "CLERK",
+                         occstr),
+         occstr = ifelse(occstr == "DOMESTIC SERVANT",
+                         "SERVANT",
+                         occstr)) %>%
+  count(occstr) %>%
+  arrange(desc(n)) %>%
+  .[1:10, "occstr"]
+
+top10_1910 = combined_1910 %>%
+  filter(labor_force == "Yes, in the labor force" & 
+           !is.na(occstr)) %>%
+  mutate(occstr == ifelse(occstr == "DOMESTIC SERVANT",
+                          "SERVANT",
+                          occstr)) %>%
+  count(occstr) %>%
+  arrange(desc(n)) %>%
+  .[1:10, "occstr"]
+
+top10_years = top10_1850 %>%
+  full_join(top10_1880, by = "occstr") %>%
+  full_join(top10_1910, by = "occstr")
+
+cbind(top10_1850, top10_1880, top10_1910) %>% 
+  kable(col.names = c("1850", "1880", "1910")) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "300px")
+```
+
+<br>
+
+#### Table of Top Occupations
+
+```{r}
+top10_combined = top10_years %>%
+  left_join(combined_1850 %>%
+              filter(occstr %in% top10_years$occstr) %>%
+              count(occstr) %>% 
+                    mutate(perc_lf = round(n / sum(combined_1850$labforce == "Yes, in the labor force") * 100,
+                           digits = 2),
+           perc_pop = round(n / NROW(combined_1850) * 100, 
+                            digits = 2)),
+            by = "occstr") %>%
+  left_join(combined_1880 %>%
+              filter(occstr %in% top10_years$occstr) %>%
+              count(occstr) %>% 
+                mutate(perc_lf = round(n / sum(combined_1880$labforce == "Yes, in the labor force") * 100,
+                           digits = 2),
+           perc_pop = round(n / NROW(combined_1880) * 100, 
+                            digits = 2)),
+            by = "occstr") %>% 
+  left_join(combined_1910 %>%
+              filter(occstr %in% top10_years$occstr) %>%
+              count(occstr) %>% 
+                mutate(perc_lf = round(n / sum(combined_1910$labor_force == "Yes, in the labor force") * 100,
+                           digits = 2),
+           perc_pop = round(n / NROW(combined_1910) * 100, 
+                            digits = 2)),
+            by = "occstr") %>%
+  select(occupation = occstr,
+         perc_lf_1850 = perc_lf.x,
+         perc_lf_1880 = perc_lf.y,
+         perc_lf_1910 = perc_lf) %>%
+  gather(key = "year", value = "count", -occupation) %>%
+  mutate(year = case_when(year == "perc_lf_1850" ~ 1850,
+                          year == "perc_lf_1880" ~ 1880,
+                          year == "perc_lf_1910" ~ 1910),
+         count = ifelse(is.na(count),
+                        0,
+                        count))
+
+# Adding logical of if occupation was a top 10 for that particular year
+top10_by_year = rbind(cbind(top10_1850, year = 1850),
+        cbind(top10_1880, year = 1880),
+        cbind(top10_1910, year = 1910)) %>%
+  select(occupation = occstr, year) %>%
+  mutate(top = 1)
+
+top10_combined = top10_combined %>% 
+  left_join(top10_by_year, by = c("occupation", "year")) %>% mutate(top = ifelse(is.na(top),
+                                                                                 0,
+                                                                                 1))
+
+top10_combined %>% 
+  select(occupation, year, top) %>% 
+  spread(key = year, value = top)%>% 
+  kable(col.names = c("occupation","1850", "1880", "1910")) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "300px")
+```
+
+* The table above indicates 1 if the occupation was a top 10 occupation in that time period, and 0 otherwise.
+* It shows that some occupations became only popular in later time periods, such as "DRIVER", while other occupations were only popular in earlier time periods such as "GROCER".
+
+#### Changes in Top 10 Occupations (Dot Plot)
+
+```{r fig.height = 6, fig.width = 10}
+col_3 = c("#ffa600", "#bc5090", "#003f5c")
+top10_combined %>%
+  ggplot(aes(y = reorder(occupation, count), 
+             x = count, 
+             col = factor(year),
+             group = occupation)) + 
+  geom_point(aes(size = count),
+             alpha = 0.8,
+             show.legend = FALSE) +
+  geom_line() +
+  scale_color_manual(values = col_3) +
+  scale_radius() +
+  scale_x_continuous() +
+  labs(y = "Occupations", col = "Year", x = "Percent of Labor Force",
+       title = "Graph of Occupation Counts in Top 10 Occupations from 1850, 1880 and 1910",
+       caption = "Note: Size of points vary on count") +
+  theme(legend.position = "top")
+```
+
+* From the graph, we can see that laborer,and clerks were top occupations in 1910.
+* Some occupations were top 10, but saw little change such as grocers, masons and cartmen.
+* This also highlights a need to check for the coding of "Clerk" in 1880, as it might be a mistake in the categorising of a clerk, given that the count had dropped in 1880l, but increased greatly in 1910.
+
+<br>
+
+#### Changes in Top 10 Occupations (Line Graph)
+
+```{r fig.height = 7, fig.width = 10}
+top10_combined %>%
+  group_by(occupation) %>%
+  mutate(difference = first(count) - last(count),
+         colour = ifelse(difference > 0,
+                         "#86b817",
+                         "#e53238")) %>%
+  ggplot(aes(y = count, x = year)) +
+  geom_point(aes(col = colour,
+                 shape = factor(top)),
+             size = 2) +
+  geom_line(aes(col = colour)) +
+  facet_wrap(~reorder(occupation, difference),
+             scales = "free") +
+  scale_colour_manual(values = c("#ee4c58", "#56c1ab")) +
+  labs(y = "Occupations", col = "Year", x = "Count",
+       title = "Graph of Occupation Percentages in Top 10 Occupations from 1850, 1880 and 1910",
+       caption = "Note: Triangle points were if the occupation was a top 10 occupation in that time\nperiod. Occupations areordered by the size of change from 1850 to 1910") + 
+  theme(legend.position = "none")
+```
+
+<br>
+
+#### Changes in Top 10 Occupations (Bar Graph)
+
+```{r fig.height = 7, fig.width = 10}
+top10_combined %>%
+  group_by(occupation) %>%
+  mutate(difference = first(count) - last(count),
+         colour = ifelse(difference > 0,
+                         "#86b817",
+                         "#e53238")) %>%
+  ggplot(aes(y = count, x = year)) +
+  geom_col(aes(fill = colour,
+               col = factor(top)),
+           size = 1) +
+  facet_wrap(~reorder(occupation, difference),
+             scales = "free") +
+  
+  scale_color_manual(values = c("white", "black")) +
+  scale_fill_manual(values = c("#ee4c58", "#56c1ab")) +
+  scale_x_continuous(breaks = c(1850, 1880, 1910)) +
+  
+  labs(y = "Occupations", col = "Year", x = "Count",
+       title = "Graph of Occupation Percentages in Top 10 Occupations from 1850, 1880 and 1910",
+       caption = "Note: Black borders were if the occupation was a top 10 occupation in that time\nperiod. Occupations areordered by the size of change from 1850 to 1910") +
+  theme(legend.position = "none")
+```
+
+<br>
+
+### 4. Analysis of Occupation Trends (OCC1950) {.tabset .tabset-fade}
+
+#### README
+
+This section investigated how occupations have changed across the three time periods of 1850, 1880 and 1910. `OCC1950` was used in this section to contrast the use of `occstr`.
+
+Again, as with the previous section of Occupation counts by year, the only respondents who were in the "Yes, in the labor force" level of `labforce` were included.
+
+Specifically, the following tabs investigate the top 10 occupations of each time period, and a list of them is shown in the next tab.
+
+#### Top 10 Jobs of each year, across time
+
+The tabe below shows the top 10 jobs in each time period
+
+```{r}
+OCC_1950 = readr::read_csv("../Data/OCC1950.csv")
+
+top10_1850 = combined_1850 %>%
+    left_join(OCC_1950, by = c("occ1950" = "code")) %>% 
+  filter(labforce == "Yes, in the labor force") %>%
+  count(label.y) %>%
+  arrange(desc(n)) %>%
+    .[1:10, "label.y"]
+
+top10_1880 = combined_1880 %>%
+    left_join(OCC_1950, by = c("occ1950" = "label")) %>% 
+  filter(labforce == "Yes, in the labor force") %>%
+  count(occ1950) %>%
+  arrange(desc(n)) %>%
+  .[1:10, "occ1950"]
+
+top10_1910 = combined_1910 %>%
+    left_join(OCC_1950, by = c("occ1950" = "code")) %>% 
+  filter(labor_force == "Yes, in the labor force" & 
+           !is.na(occ1950)) %>%
+  count(label.y) %>%
+  arrange(desc(n)) %>%
+  .[1:10, "label.y"]
+
+cbind(top10_1850, top10_1880, top10_1910) %>% 
+  kable(col.names = c("1850", "1880", "1910")) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "300px")
+```
+
+<br>
+
+```{r echo = FALSE}
+
+top10_years = top10_1850 %>%
+  full_join(top10_1880, by = c("label.y" = "occ1950")) %>%
+  full_join(top10_1910, by = c("label.y"))
+    
+
+cbind(top10_1850, top10_1880, top10_1910) %>% 
+  kable(col.names = c("1850", "1880", "1910")) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "300px")
+```
+
+<br>
+
+#### Table of Top Occupations
+
+```{r}
+top10_combined = top10_years %>%
+  left_join(combined_1850 %>%
+              left_join(OCC_1950, by = c("occ1950" = "code")) %>% 
+              filter(label.y %in% top10_years$label.y) %>%
+              count(label.y),
+            by = "label.y") %>%
+  left_join(combined_1880 %>%
+              left_join(OCC_1950, by = c("occ1950" = "label")) %>% 
+              filter(occ1950 %in% top10_years$label.y) %>%
+              count(occ1950),
+            by = c("label.y"="occ1950")) %>% 
+  left_join(combined_1910 %>%
+              left_join(OCC_1950, by = c("occ1950" = "code")) %>%
+              filter(label.y %in% top10_years$label.y) %>%
+              count(label.y),
+            by = "label.y") %>%
+  select(occupation = label.y,
+         t_1850 = n.x,
+         t_1880 = n.y,
+         t_1910 = n) %>%
+  gather(key = "year", value = "count", -occupation) %>%
+  mutate(year = case_when(year == "t_1850" ~ 1850,
+                          year == "t_1880" ~ 1880,
+                          year == "t_1910" ~ 1910),
+         count = ifelse(is.na(count),
+                        0,
+                        count))
+# Adding logical of if occupation was a top 10 for that particular year
+top10_by_year = rbind(cbind(top10_1850, year = 1850),
+        cbind(top10_1880 %>% 
+                  rename(label.y = occ1950), year = 1880),
+        cbind(top10_1910, year = 1910)) %>%
+  select(occupation = label.y, year) %>%
+  mutate(top = 1)
+
+top10_combined = top10_combined %>% 
+  left_join(top10_by_year, by = c("occupation", "year")) %>% mutate(top = ifelse(is.na(top),
+                                                                                 0,
+                                                                                 1))
+
+top10_combined %>% 
+  select(occupation, year, top) %>% 
+  spread(key = year, value = top)%>% 
+  kable(col.names = c("occupation","1850", "1880", "1910")) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "300px")
+```
+
+* The table above indicates 1 if the occupation was a top 10 occupation in that time period, and 0 otherwise.
+
+#### Changes in Top 10 Occupations (Dot Plot)
+
+```{r fig.height = 6, fig.width = 10}
+col_3 = c("#ffa600", "#bc5090", "#003f5c")
+top10_combined %>%
+  ggplot(aes(y = reorder(occupation, count), 
+             x = count, 
+             col = factor(year),
+             group = occupation)) + 
+  geom_point(aes(size = count),
+             alpha = 0.8,
+             show.legend = FALSE) +
+  geom_line() +
+  scale_color_manual(values = col_3) +
+  scale_radius() +
+  scale_x_continuous(labels = scales::comma) +
+  labs(y = "Occupations", col = "Year", x = "Count",
+       title = "Graph of Occupation Counts in Top 10 Occupations from 1850, 1880 and 1910",
+       caption = "Note: Size of points vary on count") +
+  theme(legend.position = "top")
+```
+
+<br>
+
+#### Changes in Top 10 Occupations (Line Graph)
+
+```{r fig.height = 7, fig.width = 10}
+top10_combined %>%
+  group_by(occupation) %>%
+  mutate(difference = first(count) - last(count),
+         colour = ifelse(difference > 0,
+                         "#86b817",
+                         "#e53238")) %>%
+  ggplot(aes(y = count, x = year)) +
+  geom_point(aes(col = colour,
+                 shape = factor(top)),
+             size = 2) +
+  geom_line(aes(col = colour)) +
+  facet_wrap(~reorder(occupation, difference),
+             scales = "free") +
+  scale_colour_manual(values = c("#ee4c58", "#56c1ab")) +
+  labs(y = "Occupations", col = "Year", x = "Count",
+       title = "Graph of Occupation Counts in Top 10 Occupations from 1850, 1880 and 1910",
+       caption = "Note: Triangle points were if the occupation was a top 10 occupation in that time\nperiod. Occupations areordered by the size of change from 1850 to 1910") + 
+  theme(legend.position = "none")
+```
+
+<br>
+
+#### Changes in Top 10 Occupations (Bar Graph)
+
+```{r fig.height = 7, fig.width = 10}
+top10_combined %>%
+  group_by(occupation) %>%
+  mutate(difference = first(count) - last(count),
+         colour = ifelse(difference > 0,
+                         "#86b817",
+                         "#e53238")) %>%
+  ggplot(aes(y = count, x = year)) +
+  geom_col(aes(fill = colour,
+               col = factor(top)),
+           size = 1) +
+  facet_wrap(~reorder(occupation, difference),
+             scales = "free") +
+  
+  scale_color_manual(values = c("white", "black")) +
+  scale_fill_manual(values = c("#ee4c58", "#56c1ab")) +
+  scale_x_continuous(breaks = c(1850, 1880, 1910)) +
+  
+  labs(y = "Occupations", col = "Year", x = "Count",
+       title = "Graph of Occupation Counts in Top 10 Occupations from 1850, 1880 and 1910",
+       caption = "Note: Black borders were if the occupation was a top 10 occupation in that time\nperiod. Occupations areordered by the size of change from 1850 to 1910") +
+  theme(legend.position = "none")
+```
+
+<br>
+
+### 5. Analysis of Occupation Trends (OCC1950) (%) {.tabset .tabset-fade}
+
+#### README
+
+This section investigated how occupations have changed across the three time periods of 1850, 1880 and 1910. `OCC1950` was used in this section to contrast the use of `occstr`.
+
+Again, as with the previous section of Occupation counts by year, the only respondents who were in the "Yes, in the labor force" level of `labforce` were included.
+
+Specifically, the following tabs investigate the top 10 occupations of each time period, and a list of them is shown in the next tab.
+
+#### Top 10 Jobs of each year, across time
+
+The tabe below shows the top 10 jobs in each time period
+
+```{r}
+OCC_1950 = readr::read_csv("../Data/OCC1950.csv")
+
+top10_1850 = combined_1850 %>%
+    left_join(OCC_1950, by = c("occ1950" = "code")) %>% 
+  filter(labforce == "Yes, in the labor force") %>%
+  count(label.y) %>%
+  mutate(perc_lf = round(n / sum(combined_1850$labforce == "Yes, in the labor force") * 100,
+                         digits = 2),
+         perc_pop = round(n / NROW(combined_1850) * 100, 
+                          digits = 2)) %>%
+  arrange(desc(n)) %>%
+    .[1:10, "label.y"]
+
+top10_1880 = combined_1880 %>%
+    left_join(OCC_1950, by = c("occ1950" = "label")) %>% 
+  filter(labforce == "Yes, in the labor force") %>%
+  count(occ1950) %>%
+  mutate(perc_lf = round(n / sum(combined_1910$labor_force == "Yes, in the labor force") * 100,
+                         digits = 2),
+         perc_pop = round(n / NROW(combined_1910) * 100, 
+                          digits = 2)) %>% 
+  arrange(desc(n)) %>%
+  .[1:10, "occ1950"]
+
+top10_1910 = combined_1910 %>%
+    left_join(OCC_1950, by = c("occ1950" = "code")) %>% 
+  filter(labor_force == "Yes, in the labor force" & 
+           !is.na(occ1950)) %>%
+  count(label.y) %>%
+  mutate(perc_lf = round(n / sum(combined_1910$labor_force == "Yes, in the labor force") * 100,
+                         digits = 2),
+         perc_pop = round(n / NROW(combined_1910) * 100, 
+                          digits = 2)) %>%
+  arrange(desc(n)) %>%
+  .[1:10, "label.y"]
+
+cbind(top10_1850, top10_1880, top10_1910) %>% 
+  kable(col.names = c("1850", "1880", "1910")) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "300px")
+```
+
+<br>
+
+```{r echo = FALSE}
+
+top10_years = top10_1850 %>%
+  full_join(top10_1880, by = c("label.y" = "occ1950")) %>%
+  full_join(top10_1910, by = c("label.y"))
+    
+
+cbind(top10_1850, top10_1880, top10_1910) %>% 
+  kable(col.names = c("1850", "1880", "1910")) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "300px")
+```
+
+<br>
+
+#### Table of Top Occupations
+
+```{r}
+top10_combined = top10_years %>%
+  left_join(combined_1850 %>%
+              left_join(OCC_1950, by = c("occ1950" = "code")) %>% 
+              filter(label.y %in% top10_years$label.y) %>%
+              count(label.y) %>% 
+              mutate(perc_lf = round(n / sum(combined_1850$labforce == "Yes, in the labor force") * 100,
+                           digits = 2),
+           perc_pop = round(n / NROW(combined_1850) * 100, 
+                            digits = 2)),
+            by = "label.y") %>%
+  left_join(combined_1880 %>%
+              left_join(OCC_1950, by = c("occ1950" = "label")) %>% 
+              filter(occ1950 %in% top10_years$label.y) %>%
+              count(occ1950) %>% 
+              mutate(perc_lf = round(n / sum(combined_1880$labforce == "Yes, in the labor force") * 100,
+                           digits = 2),
+           perc_pop = round(n / NROW(combined_1880) * 100, 
+                            digits = 2)),
+            by = c("label.y"="occ1950")) %>% 
+  left_join(combined_1910 %>%
+              left_join(OCC_1950, by = c("occ1950" = "code")) %>%
+              filter(label.y %in% top10_years$label.y) %>%
+              count(label.y) %>% 
+              mutate(perc_lf = round(n / sum(combined_1910$labor_force == "Yes, in the labor force") * 100,
+                           digits = 2),
+           perc_pop = round(n / NROW(combined_1910) * 100, 
+                            digits = 2)),
+            by = "label.y") %>%
+  select(occupation = label.y,
+         perc_lf_1850 = perc_lf.x,
+         perc_lf_1880 = perc_lf.y,
+         perc_lf_1910 = perc_lf) %>%
+  gather(key = "year", value = "count", -occupation) %>%
+  mutate(year = case_when(year == "perc_lf_1850" ~ 1850,
+                          year == "perc_lf_1880" ~ 1880,
+                          year == "perc_lf_1910" ~ 1910),
+         count = ifelse(is.na(count),
+                        0,
+                        count))
+# Adding logical of if occupation was a top 10 for that particular year
+top10_by_year = rbind(cbind(top10_1850, year = 1850),
+        cbind(top10_1880 %>% 
+                  rename(label.y = occ1950), year = 1880),
+        cbind(top10_1910, year = 1910)) %>%
+  select(occupation = label.y, year) %>%
+  mutate(top = 1)
+
+top10_combined = top10_combined %>% 
+  left_join(top10_by_year, by = c("occupation", "year")) %>% mutate(top = ifelse(is.na(top),
+                                                                                 0,
+                                                                                 1))
+
+top10_combined %>% 
+  select(occupation, year, top) %>% 
+  spread(key = year, value = top)%>% 
+  kable(col.names = c("occupation","1850", "1880", "1910")) %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "300px")
+```
+
+* The table above indicates 1 if the occupation was a top 10 occupation in that time period, and 0 otherwise.
+
+#### Changes in Top 10 Occupations (Dot Plot)
+
+```{r fig.height = 6, fig.width = 10}
+col_3 = c("#ffa600", "#bc5090", "#003f5c")
+top10_combined %>%
+  ggplot(aes(y = reorder(occupation, count), 
+             x = count, 
+             col = factor(year),
+             group = occupation)) + 
+  geom_point(aes(size = count),
+             alpha = 0.8,
+             show.legend = FALSE) +
+  geom_line() +
+  scale_color_manual(values = col_3) +
+  scale_radius() +
+  scale_x_continuous(labels = scales::comma) +
+  labs(y = "Occupations", col = "Year", x = "Percent",
+       title = "Graph of Occupation % in Top 10 Occupations from 1850, 1880 and 1910",
+       caption = "Note: Size of points vary on count") +
+  theme(legend.position = "top")
+```
+
+<br>
+
+#### Changes in Top 10 Occupations (Line Graph)
+
+```{r fig.height = 7, fig.width = 10}
+top10_combined %>%
+  group_by(occupation) %>%
+  mutate(difference = first(count) - last(count),
+         colour = ifelse(difference > 0,
+                         "#86b817",
+                         "#e53238")) %>%
+  ggplot(aes(y = count, x = year)) +
+  geom_point(aes(col = colour,
+                 shape = factor(top)),
+             size = 2) +
+  geom_line(aes(col = colour)) +
+  facet_wrap(~reorder(occupation, difference),
+             scales = "free") +
+  scale_colour_manual(values = c("#ee4c58", "#56c1ab")) +
+  labs(y = "Occupations", col = "Year", x = "Percent",
+       title = "Graph of Occupation % in Top 10 Occupations from 1850, 1880 and 1910",
+       caption = "Note: Triangle points were if the occupation was a top 10 occupation in that time\nperiod. Occupations areordered by the size of change from 1850 to 1910") + 
+  theme(legend.position = "none")
+```
+
+<br>
+
+#### Changes in Top 10 Occupations (Bar Graph)
+
+```{r fig.height = 7, fig.width = 10}
+top10_combined %>%
+  group_by(occupation) %>%
+  mutate(difference = first(count) - last(count),
+         colour = ifelse(difference > 0,
+                         "#86b817",
+                         "#e53238")) %>%
+  ggplot(aes(y = count, x = year)) +
+  geom_col(aes(fill = colour,
+               col = factor(top)),
+           size = 1) +
+  facet_wrap(~reorder(occupation, difference),
+             scales = "free") +
+  
+  scale_color_manual(values = c("white", "black")) +
+  scale_fill_manual(values = c("#ee4c58", "#56c1ab")) +
+  scale_x_continuous(breaks = c(1850, 1880, 1910)) +
+  
+  labs(y = "Occupations", col = "Year", x = "Percent",
+       title = "Graph of Occupation % in Top 10 Occupations from 1850, 1880 and 1910",
+       caption = "Note: Black borders were if the occupation was a top 10 occupation in that time\nperiod. Occupations areordered by the size of change from 1850 to 1910") +
+  theme(legend.position = "none")
+```
+
+<br>
 
