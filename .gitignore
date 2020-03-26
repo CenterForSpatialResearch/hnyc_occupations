@@ -9,3 +9,4 @@ Scripts/2_Missing_label_analysis_files
 .Rhistory
 *.Rproj
 Scripts/99_General_trends.html
+.Rproj.user
