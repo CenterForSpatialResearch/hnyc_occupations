@@ -80,7 +80,7 @@ combined_1850 = rbind(mn_1850, bk_1850) %>%
 # Theme setting for visualisations
 theme_set(theme_minimal() + 
             theme(panel.grid.minor = element_blank(),
-                  text = element_text(family = "Quicksand",
+                  text = element_text(family = "Arial",
                                       colour = "black")))
 col_sex = c("#e21737", "#0b648f")
 col_miss = c("#86b817", "#e53238")
