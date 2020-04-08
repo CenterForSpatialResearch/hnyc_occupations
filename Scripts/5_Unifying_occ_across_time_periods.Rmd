@@ -53,7 +53,7 @@ OCC_1950 = readr::read_csv("../Data/OCC1950.csv")
 # Combining Data
 combined_1850 = rbind(mn_1850, bk_1850) %>% 
   select(age, sex, marst, race, labforce,
-         occ, city, everything()) %>%
+         occ, city, occ1950, occstr) %>%
   left_join(OCC_1880, by = c("occ" = "code")) %>%
   left_join(OCC_1950, by = c("occ1950" = "code")) %>%
   mutate(race = factor(race,
@@ -76,15 +76,17 @@ combined_1850 = rbind(mn_1850, bk_1850) %>%
                                    "Separated",
                                    "Divorced",
                                    "Widowed",
-                                   "Never married/single")))
+                                   "Never married/single"))) %>%
+  filter(labforce == "Yes, in the labor force")
 
 # Theme setting for visualisations
 theme_set(theme_minimal() + 
             theme(panel.grid.minor = element_blank(),
                   text = element_text(family = "Quicksand",
                                       colour = "black")))
-col_sex = c("#e21737", "#0b648f")
-col_miss = c("#86b817", "#e53238")
+
+# Source occ_modifier
+source("0_OCC_Modifier.R")
 
 # Saving Memory
 rm(bk_1850)
@@ -103,12 +105,13 @@ bk_1880 = readr::read_csv("../Data/census_1880_occ_bk.csv") %>% mutate(city = "B
 # Combining Data
 combined_1880 = rbind(mn_1880, bk_1880) %>% 
   select(age, sex, race, labforce,
-         occ, city, everything()) %>%
+         occ, city, occstr, occ1950) %>%
   left_join(OCC_1880, by = c("occ" = "code")) %>%
   mutate(age = ifelse(age == "Less than 1 year old",
                       0,
                       age),
-         age = as.numeric(age))
+         age = as.numeric(age)) %>%
+  filter(labforce == "Yes, in the labor force")
 
 rm(OCC_1880)
 rm(bk_1880)
@@ -119,7 +122,7 @@ rm(mn_1880)
 
 #### Loading 1910
 
-```{r message = FALSE, warning = FALSE, eval = FALSE}
+```{r message = FALSE, warning = FALSE}
 # Loading
 mn_1910 = readr::read_csv("../Data/census_1910_occ_mn.csv") %>% mutate(city = "Manhattan")
 bk_1910 = readr::read_csv("../Data/census_1910_occ_bk.csv") %>% mutate(city = "Brooklyn")
@@ -128,6 +131,7 @@ OCC_1950 = readr::read_csv("../Data/OCC1950.csv")
 # Combining Data
 combined_1910 = rbind(mn_1910, bk_1910) %>%
   left_join(OCC_1950, by = c("occ1950" = "code")) %>%
+  select(age, sex, labor_force, race, occ1950, occstr, occ1950_label) %>%
   mutate(sex = factor(sex,
                       levels = c(1,2),
                       labels = c("Male", "Female")),
@@ -135,7 +139,8 @@ combined_1910 = rbind(mn_1910, bk_1910) %>%
                               levels = c(0,1,2),
                               labels = c("N/A", 
                                          "No, not in the labor force",
-                                         "Yes, in the labor force")))
+                                         "Yes, in the labor force"))) %>%
+  filter(labor_force == "Yes, in the labor force")
 
 rm(OCC_1950)
 rm(mn_1910)
@@ -165,9 +170,9 @@ From the table above, several options of using a consistent occupation coding sc
 
 <br>
 
-### 3. Comparing `occ1950` to `occ` (`occ_label`)
+### 3. Comparing `occ1950` to `occ` (`occ_label`) {.tabset .tabset-fade}
 
-#### 1880
+#### Possible Approaches
 
 <br>
 
@@ -175,14 +180,10 @@ Given that `occ` has 268 unique occupations, while `occ1950` has 230 unique occu
 
 <br>
 
-```{r echo = FALSE}
-sub_1880 = combined_1880 %>% 
-  filter(labforce == "Yes, in the labor force") %>% 
-  select(occ1950, occ_label, occstr)
-```
-
 ```{r}
-sub_1880 %>%
+combined_1880 %>% 
+  filter(labforce == "Yes, in the labor force") %>% 
+  select(occ1950, occ_label, occstr) %>%
   group_by(occ1950, occ_label) %>%
   summarise(count = n()) %>%
   group_by(occ1950) %>%
@@ -223,12 +224,15 @@ combined_1880 %>%
 
 <br>
 
-```{r message = FALSE, warning = FALSE}
-combined_1880$occstr %>%
-  as.data.frame(stringsAsFactors = FALSE) %>%
-  unnest_tokens(tbl = ., 
-                input = ., 
-                output = word) %>%
+#### 1850
+
+<br>
+
+```{r}
+combined_1850 %>%
+  unnest_tokens(input = occstr,
+                output = word,
+                token = "words") %>%
   anti_join(stop_words) %>%
   group_by(word) %>%
   summarise(count = n()) %>%
@@ -236,3 +240,183 @@ combined_1880$occstr %>%
   head(200) %>%             # Only 200 words are shown for ease of loading
   datatable()
 ```
+
+```{r message = FALSE, warning = FALSE}
+combined_1850 %>%
+  group_by(occstr) %>%
+  summarise(count = n()) %>%
+  unnest_tokens(input = occstr,
+                output = ngrams,
+                token = "ngrams",
+                n = 5,
+                n_min = 1) %>%
+  filter(!is.na(ngrams)) %>%
+  arrange(desc(count)) %>% 
+  head(200) %>%             # Only 200 words are shown for ease of loading
+  datatable()
+```
+
+<br>
+
+#### 1880
+
+<br>
+
+```{r}
+combined_1880 %>%
+  unnest_tokens(input = occstr,
+                output = word,
+                token = "words") %>%
+  anti_join(stop_words) %>%
+  group_by(word) %>%
+  summarise(count = n()) %>%
+  arrange(desc(count)) %>% 
+  head(200) %>%             # Only 200 words are shown for ease of loading
+  datatable()
+```
+
+<br>
+
+```{r message = FALSE, warning = FALSE}
+combined_1880 %>%
+  group_by(occstr) %>%
+  summarise(count = n()) %>%
+  unnest_tokens(input = occstr,
+                output = ngrams,
+                token = "ngrams",
+                n = 5,
+                n_min = 1) %>%
+  filter(!is.na(ngrams)) %>%
+  arrange(desc(count)) %>% 
+  head(200) %>%             # Only 200 words are shown for ease of loading
+  datatable()
+```
+
+<br>
+
+#### 1910
+
+<br>
+
+```{r}
+combined_1910 %>%
+  unnest_tokens(input = occstr,
+                output = word,
+                token = "words") %>%
+  anti_join(stop_words) %>%
+  group_by(word) %>%
+  summarise(count = n()) %>%
+  arrange(desc(count)) %>% 
+  head(200) %>%             # Only 200 words are shown for ease of loading
+  datatable()
+```
+
+<br>
+
+```{r message = FALSE, warning = FALSE}
+combined_1910 %>%
+  group_by(occstr) %>%
+  summarise(count = n()) %>%
+  unnest_tokens(input = occstr,
+                output = ngrams,
+                token = "ngrams",
+                n = 5,
+                n_min = 1) %>%
+  filter(!is.na(ngrams)) %>%
+  arrange(desc(count)) %>% 
+  head(200) %>%             # Only 200 words are shown for ease of loading
+  datatable()
+```
+
+<br>
+
+#### Combining across all three time periods
+
+```{r}
+combined_summary = combined_1850 %>%
+  group_by(occstr) %>%
+  summarise(count = n()) %>%
+  rbind(combined_1880 %>%
+          group_by(occstr) %>%
+          summarise(count = n())) %>%
+  rbind(combined_1910 %>%
+          group_by(occstr) %>%
+          summarise(count = n())) %>%
+  group_by(occstr) %>%
+  summarise(count = sum(count)) %>%
+  unnest_tokens(input = occstr,
+                output = ngrams,
+                token = "ngrams",
+                n = 5,
+                n_min = 1) %>%
+  filter(!is.na(ngrams)) %>%
+  arrange(desc(count))
+
+combined_summary %>% 
+  head(200) %>%
+  datatable()
+```
+
+```{r eval = FALSE}
+readr::write_csv(combined_summary, path = "../Data/combined_summary.csv")
+```
+
+<br>
+
+Inspecting the output from above, several observations are noted:
+
+* There exists a large number of "makers" (i.e. dress makers), "clerk" "teacher", "driver", "merchants", "servant"
+* There exists a number of mis-spellings, or inconsistent spellings, such as "laborer", "labor" and "labourer"
+
+<br>
+
+### 4. Application of `occ_modifier`
+
+From `combined_summary`, `occ_modifier` was developed using the data frame as a reference. The function's main purpose is to identify `occstr`s that are nested within other `occstr`s (i.e. CLERK from CLERK IN STORE). It is noted that the identification and reclassification of `occstr`s give priority to `occstr`s that have a higher count. In other words, should there exist an `occstr` that contains two unique `occstr`s, it would be reclassified into the `occstr` with a higher count.
+
+<br>
+
+```{r}
+pre1 = combined_1850 %>%
+  group_by(occstr) %>%
+  summarise(count = n()) %>%
+  rbind(combined_1880 %>%
+          group_by(occstr) %>%
+          summarise(count = n())) %>%
+  rbind(combined_1910 %>%
+          group_by(occstr) %>%
+          summarise(count = n())) %>%
+  group_by(occstr) %>%
+  summarise(count = sum(count)) %>%
+  arrange(desc(count)) %>%
+  head(50)
+
+pre1$count %>% sum()
+pre1 %>% datatable()
+```
+
+<br>
+
+```{r}
+pre2 = combined_1850 %>%
+  group_by(occstr) %>%
+  summarise(count = n()) %>%
+  rbind(combined_1880 %>%
+          group_by(occstr) %>%
+          summarise(count = n())) %>%
+  rbind(combined_1910 %>%
+          group_by(occstr) %>%
+          summarise(count = n())) %>%
+  mutate(occstr = occ_modifier(occstr)) %>%
+  group_by(occstr) %>%
+  summarise(count = sum(count)) %>%
+  arrange(desc(count)) %>%
+  head(50)
+
+pre2$count %>% sum()
+pre2 %>% datatable()
+```
+
+<br>
+
+Inspecting the top 50 occupations, it can be seen that the count of the top 50 occupations has increased from 1373932 to 1708206. Furthermore, some interesting changes would be that CLERK is now the occupation with the largest count, over taking laborer. 
