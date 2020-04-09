@@ -1,7 +1,7 @@
 ---
 title: "Unifying OCC across Time Periods"
 author: "Clinton"
-date: "2 April 2020"
+date: "9 April 2020"
 output: html_document
 editor_options: 
   chunk_output_type: console
@@ -420,3 +420,73 @@ pre2 %>% datatable()
 <br>
 
 Inspecting the top 50 occupations, it can be seen that the count of the top 50 occupations has increased from 1373932 to 1708206. Furthermore, some interesting changes would be that CLERK is now the occupation with the largest count, over taking laborer. 
+
+<br>
+
+### 5. Improvements {.tabset .tabset-fade}
+
+#### 1850
+
+```{r}
+combined_1850 %>%
+  group_by(occ_label, occ1950_label, occstr) %>%
+  summarise(count = n()) %>%
+  left_join(combined_1850 %>% 
+              mutate(occstr = occ_modifier(occstr)) %>%
+              group_by(occ_label, occ1950_label, occstr) %>%
+              summarise(count_modified = n()),
+            by = c("occ_label", "occ1950_label", "occstr")
+            ) %>%
+  mutate(improvement = paste0(round((count_modified - count) / 
+                                      count * 100, digits = 1), 
+                              "%")) %>%
+  arrange(desc(count_modified)) %>%
+  head(200) %>%
+  datatable()
+```
+
+<br>
+
+#### 1880
+
+```{r}
+combined_1880 %>%
+  group_by(occ_label, occ1950, occstr) %>%
+  summarise(count = n()) %>%
+  left_join(combined_1880 %>% 
+              mutate(occstr = occ_modifier(occstr)) %>%
+              group_by(occ_label, occ1950, occstr) %>%
+              summarise(count_modified = n()),
+            by = c("occ_label", "occ1950", "occstr")
+            ) %>%
+  mutate(improvement = paste0(round((count_modified - count) / 
+                                      count * 100, digits = 1), 
+                              "%")) %>%
+  arrange(desc(count_modified)) %>%
+  head(200) %>%
+  datatable()
+```
+
+<br>
+
+#### 1910
+
+```{r}
+combined_1910 %>%
+  group_by(occ1950_label, occstr) %>%
+  summarise(count = n()) %>%
+  left_join(combined_1910 %>% 
+              mutate(occstr = occ_modifier(occstr)) %>%
+              group_by(occ1950_label, occstr) %>%
+              summarise(count_modified = n()),
+            by = c("occ1950_label", "occstr")
+            ) %>%
+  mutate(improvement = paste0(round((count_modified - count) / 
+                                      count * 100, digits = 1), 
+                              "%")) %>%
+  arrange(desc(count_modified)) %>%
+  head(200) %>%
+  datatable()
+```
+
+<br>

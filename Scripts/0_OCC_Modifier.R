@@ -13,7 +13,7 @@ occ_modifier = function(x) {
       str_detect(x, pattern = "labo(r|rer|ring|urer)")        ~ "laborer",
       str_detect(x, pattern = "clerk")                        ~ "clerk",
       str_detect(x, pattern = "servant")                      ~ "servant",
-      str_detect(x, pattern = "tailor")                       ~ "tailor",
+      str_detect(x, pattern = "tailor(|ing)")                 ~ "tailor",
       #str_detect(x, pattern = "operator")                     ~ "operator",
       str_detect(x, pattern = "sales\\s?(man|lady|woman)")    ~ "salesman",
       str_detect(x, pattern = "carpenter") &
@@ -42,7 +42,7 @@ occ_modifier = function(x) {
       str_detect(x, pattern = "pedd?ll?(e|a)r")               ~ "peddler",
       str_detect(x, pattern = "nurse")                        ~ "nurse",
       str_detect(x, pattern = "manager")                      ~ "manager",
-      str_detect(x, pattern = "bar tender")                   ~ "bartender",
+      str_detect(x, pattern = "bar\\s?tender")                ~ "bartender",
       
       # Breakpoint for top 50 rows of occupations
       
@@ -52,6 +52,7 @@ occ_modifier = function(x) {
       str_detect(x, pattern = "electrician")                  ~ "electrician",
       str_detect(x, pattern = "manufact(ure|o)r?")            ~ "manufacturer",
       str_detect(x, pattern = "house\\s?work")                ~ "housework",
+      str_detect(x, pattern = "broker")                       ~ "broker",        
       str_detect(x, pattern = "janit(or|ress)")               ~ "janitor",
       str_detect(x, pattern = "fire\\s?man")                  ~ "fireman",
       str_detect(x, pattern = "helper")                       ~ "helper",
@@ -74,7 +75,8 @@ occ_modifier = function(x) {
       str_detect(x, pattern = "chau?ff?e?u?r")                ~ "chauffeur",
       str_detect(x, pattern = "tin\\s?smith")                 ~ "tinsmith",
       str_detect(x, pattern = "plaster(|er|ing)")             ~ "plasterer",
-      str_detect(x, pattern = "long\\s?shore\\s?m(a|e)n")     ~ "longshoreman",
+      str_detect(x, pattern = "long\\s?shore\\s?")            ~ "longshoreman",
+      str_detect(x, pattern = "house\\s?keep(er|ing)")        ~ "house keeper",
       str_detect(x, pattern = "retail")                       ~ "merchant",
       # priority given to merchant
       
@@ -180,7 +182,7 @@ occ_modifier = function(x) {
       str_detect(x, pattern = "wagon driver")                 ~ "driver",
       # priority given to driver
       str_detect(x, pattern = "clergy?\\s?m(a|en)")           ~ "clergyman",
-      str_detect(x, pattern = "elevator\\s?man")              ~ "elevator man",
+      str_detect(x, pattern = "elevator\\s?(man|runner)")     ~ "elevator man",
       str_detect(x, pattern = "candy\\s?maker")               ~ "candy maker",
       str_detect(x, pattern = "rigger")                       ~ "rigger",
       str_detect(x, pattern = "dry good")                     ~ "merchant",
@@ -190,6 +192,52 @@ occ_modifier = function(x) {
       str_detect(x, pattern = "importer")                     ~ "importer",
       str_detect(x, pattern = "retail\\s?grocer")             ~ "retail",
       # priority given to retail (priority given to merchant)
+      str_detect(x, pattern = "stone mason")                  ~ "mason",
+      # priority given to mason
+      str_detect(x, pattern = "lock\\s?smith")                ~ "locksmith",
+      str_detect(x, pattern = "restaurant")                   ~ "restaurant keeper",
+      str_detect(x, pattern = "shovell?er")                   ~ "shoveler",
+      str_detect(x, pattern = "boot\\s?black")                ~ "boot black",
+      str_detect(x, pattern = "bank")                         ~ "banker",
+      str_detect(x, pattern = "soldier")                      ~ "soldier",
+      str_detect(x, pattern = "telephone")                    ~ "telephone operator",
+      str_detect(x, pattern = "chemi(st|cal)")                ~ "chemist",
+      str_detect(x, pattern = "harness?\\s?maker")            ~ "harness maker",
+      str_detect(x, pattern = "milk\\s?man")                  ~ "milkman",
+      str_detect(x, pattern = "captain")                      ~ "captain",
+      str_detect(x, pattern = "rooff?er")                     ~ "roofer",
+      str_detect(x, pattern = "editor")                       ~ "editor",
+      str_detect(x, pattern = "guard")                        ~ "guard",
+      str_detect(x, pattern = "draughts?\\s?man")             ~ "draughtsman",
+      str_detect(x, pattern = "gas\\s?fit?er")                ~ "gas fitter",
+      str_detect(x, pattern = "sawy?er")                      ~ "sawyer",
+      str_detect(x, pattern = "ironer")                       ~ "presser",
+      # priority given to presser
+      str_detect(x, pattern = "feeder")                       ~ "feeder",
+      str_detect(x, pattern = "patrol\\s?man")                ~ "patrolman",
+      str_detect(x, pattern = "paper\\s?hanger")              ~ "paper hanger",
+      str_detect(x, pattern = "pharmac(ist|y)")               ~ "pharmacist",
+      str_detect(x, pattern = "cheff?")                       ~ "chef",
+      str_detect(x, pattern = "stev(e|a)dore?")               ~ "stevedore",
+      str_detect(x, pattern = "att?end")                      ~ "attendant",
+      str_detect(x, pattern = "hod\\s?carr?(ier|ying)")       ~ "hod carrier",
+      str_detect(x, pattern = "stripper")                     ~ "stripper",
+      str_detect(x, pattern = "hotel\\s?keeper")              ~ "hotel keeper",
+      str_detect(x, pattern = "bar\\s?keeper")                ~ "bar keeper",
+      str_detect(x, pattern = "mid\\s?wife")                  ~ "midwife",
+      str_detect(x, pattern = "house\\s?keep(er|ing)")        ~ "importer",
+      str_detect(x, pattern = "silver\\s?smith")              ~ "silversmith",
+      str_detect(x, pattern = "wheel\\s?w?right")             ~ "wheelwright",
+      str_detect(x, pattern = "dish\\s?washer")               ~ "dishwasher",
+      str_detect(x, pattern = "gla(z|s)ier")                  ~ "fitter",
+      # priority given to fitter
+      str_detect(x, pattern = "paper\\s?box\\s?maker")        ~ "paper box maker",
+      str_detect(x, pattern = "flower\\s?maker")              ~ "flower maker",
+      str_detect(x, pattern = "publish(er|ing)")              ~ "publisher",
+      str_detect(x, pattern = "carver")                       ~ "carver",
+      str_detect(x, pattern = "book\\s?folder")               ~ "book folder",
+      
+      # Breakpoint for occupation with counts greater than 1000
       
       #str_detect(x, pattern = "maker")                 ~ "maker",
       TRUE ~ x
