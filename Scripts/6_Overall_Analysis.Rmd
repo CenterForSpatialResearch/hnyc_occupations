@@ -1,0 +1,541 @@
+---
+title: "Overall Analysis"
+author: "Clinton"
+date: "13 April 2020"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+<br>
+
+```
+Objective: General Analysis
+```
+
+<br>
+
+### 1. Set Up {.tabset .tabset-fade}
+
+#### README
+
+In general, the data sets are relatively large, and take up a large amount of memory after loading. It is recommended that after loading, that the data sets be subsetted or summarised, and unused data frames to be removed.
+
+The code is shown in the next three tabs to show any changes that may have been made. In general, no columns or rows are removed. Filtering occured in the next step.
+
+<br>
+
+#### General
+
+```{r message = FALSE, warning = FALSE}
+library(dplyr)
+library(ggplot2)
+library(treemap)
+library(extrafont)
+library(stringr)
+loadfonts()
+library(knitr)
+library(kableExtra)
+library(tidyr)
+library(DT)
+library(tidytext)
+library(psych)
+
+# Theme setting for visualisations
+theme_set(theme_minimal() + 
+            theme(panel.grid.minor = element_blank(),
+                  text = element_text(family = "Quicksand",
+                                      colour = "black")))
+options(scipen = 999)
+
+# Source occ_modifier
+source("0_OCC_Modifier.R")
+```
+
+#### Loading 1850
+
+```{r eval = FALSE}
+# Loading
+mn_1850 = readr::read_csv("../Data/census_1850_occ_mn.csv") %>% mutate(city = "Manhattan")
+bk_1850 = readr::read_csv("../Data/census_1850_occ_bk.csv") %>% mutate(city = "Brooklyn")
+OCC_1880 = readr::read_csv("../Data/OCC1880.csv")
+OCC_1950 = readr::read_csv("../Data/OCC1950.csv")
+
+# Combining Data
+combined_1850 = rbind(mn_1850, bk_1850) %>% 
+  select(age, sex, race, labforce,
+         occ, city, occ1950, occstr, 
+         enumdist) %>%
+  left_join(OCC_1880, by = c("occ" = "code")) %>%
+  left_join(OCC_1950, by = c("occ1950" = "code")) %>%
+  mutate(race = factor(race,
+                       levels = c(100,120,200,210,300),
+                       labels = c("White", "White",
+                                  "Black/African American/Negro",
+                                  "Mulatto", 
+                                  "American Indian/Alaska Native (AIAN)")),
+         labforce = factor(labforce,
+                           levels = c(0,1,2),
+                           labels = c("N/A",
+                                      "No, not in the labor force",
+                                      "Yes, in the labor force")),
+         sex = factor(sex,
+                      levels = c(1,2),
+                      labels = c("Male", "Female")),
+         year = 1850) %>%
+  
+  # Data prepping for combining
+  filter(labforce == "Yes, in the labor force") %>%
+  select(year, age, sex, race, city, enumdist, 
+         occstr, occ_label, occ1950_label) %>%
+  mutate(race = as.character(race),
+         sex = as.character(sex))
+
+# Saving Memory
+rm(bk_1850)
+rm(mn_1850)
+```
+
+<br>
+
+#### Loading 1880
+
+```{r message = FALSE, warning = FALSE, eval = FALSE}
+# Loading
+mn_1880 = readr::read_csv("../Data/census_1880_occ_mn.csv") %>% mutate(city = "Manhattan")
+bk_1880 = readr::read_csv("../Data/census_1880_occ_bk.csv") %>% mutate(city = "Brooklyn")
+
+# Combining Data
+combined_1880 = rbind(mn_1880, bk_1880) %>% 
+  select(age, sex, race, labforce,
+         occ, city, occstr, occ1950, 
+         enumdist) %>%
+  left_join(OCC_1880, by = c("occ" = "code")) %>%
+  mutate(age = ifelse(age == "Less than 1 year old",
+                      0,
+                      age),
+         age = as.numeric(age),
+         year = 1880) %>%
+  
+  # Data prepping for combining
+  filter(labforce == "Yes, in the labor force") %>%
+  select(year, age, sex, race, city, enumdist,
+         occstr, occ_label, occ1950_label = occ1950)
+
+rm(OCC_1880)
+rm(bk_1880)
+rm(mn_1880)
+```
+
+<br>
+
+#### Loading 1910
+
+```{r message = FALSE, warning = FALSE, eval = FALSE}
+# Loading
+mn_1910 = readr::read_csv("../Data/census_1910_occ_mn.csv") %>% mutate(city = "Manhattan")
+bk_1910 = readr::read_csv("../Data/census_1910_occ_bk.csv") %>% mutate(city = "Brooklyn")
+OCC_1950 = readr::read_csv("../Data/OCC1950.csv")
+
+# Combining Data
+combined_1910 = rbind(mn_1910, bk_1910) %>%
+  left_join(OCC_1950, by = c("occ1950" = "code")) %>%
+  select(age, sex, labor_force, race, 
+         occ1950, occstr, occ1950_label, city,
+         enumdist) %>%
+  mutate(sex = factor(sex,
+                      levels = c(1,2),
+                      labels = c("Male", "Female")),
+         labor_force = factor(labor_force,
+                              levels = c(0,1,2),
+                              labels = c("N/A", 
+                                         "No, not in the labor force",
+                                         "Yes, in the labor force")),
+         race = factor(race,
+                       levels = c(100, 140, 200, 210, 300, 400, 500, 600, 672),
+                       labels = c("White", "Mexican (1930)", 
+                                  "Black/African American/Negro",
+                                  "Mulatto", 
+                                  "American Indian/Alaska Native (AIAN)",
+                                  "Chinese",
+                                  "Japanese",
+                                  "Filipino",
+                                  "Asian, not specified")),
+         year = 1910) %>%
+  
+  # Data prepping for combining
+  filter(labor_force == "Yes, in the labor force") %>%
+  select(year, age, sex, race, city, enumdist,
+         occstr, occ_label = occ1950_label) %>%
+  mutate(occ1950_label = occ_label,
+         sex = as.character(sex),
+         race = as.character(race))
+
+rm(OCC_1950)
+rm(mn_1910)
+rm(bk_1910)
+```
+
+<br>
+
+#### Combining all time periods, applying `occ_modifier`
+
+```{r eval = FALSE}
+combined = 
+  bind_rows(combined_1850, 
+            combined_1880, 
+            combined_1910) %>%
+  mutate(occstr = occ_modifier(occstr))
+
+rm(combined_1850)
+rm(combined_1880)
+rm(combined_1910)
+```
+
+```{r eval = FALSE}
+readr::write_csv(combined, "combined.csv")
+```
+
+```{r warning = FALSE}
+combined = readr::read_csv("../Data/combined.csv") %>%
+  mutate(year     = as.factor(year),
+         sex      = as.factor(sex),
+         race     = as.factor(race),
+         city     = as.factor(city))
+
+# To reduce computation later
+var_lf_1850 = combined %>% filter(year == 1850) %>% NROW()
+var_lf_1880 = combined %>% filter(year == 1880) %>% NROW()
+var_lf_1910 = combined %>% filter(year == 1910) %>% NROW()
+var_lf = var_lf_1850 + var_lf_1880 + var_lf_1910
+```
+
+<br>
+
+### 2. Analysis of Demographics {.tabset .tabset-fade}
+
+#### Age
+
+##### General Trends
+
+```{r message = FALSE, warning = FALSE, fig.width = 10, fig.height = 6}
+combined %>%
+  ggplot(aes(x = age)) +
+  geom_histogram(binwidth = 5, 
+                 fill     = "#FBD75C", 
+                 col      = "#FFA600") +
+  scale_x_continuous(limits = c(0, 100),
+                     breaks = seq(0, 100, 10)) + 
+  labs(y = "Count", x = "Age",
+       title = "Histogram of Age of the Labor Force")
+
+describe(combined$age)
+```
+
+<br>
+
+##### Yearly Trends
+
+```{r message = FALSE, warning = FALSE, fig.width = 10, fig.height = 6}
+col_3 = c("#ffa600", "#bc5090", "#003f5c")
+
+combined %>%
+  ggplot(aes(x = age, fill = year)) +
+  geom_histogram(binwidth = 5) +
+  facet_wrap(~year) +
+  scale_fill_manual(values = col_3) +
+  labs(y = "Count", x = "Age",
+       title = "Histogram of Age of Labor Force across Time Periods") + 
+  theme(legend.position = "none")
+
+combined %>%
+  select(age, year) %>%
+  describeBy(group = .$year)
+```
+
+<br>
+
+#### Sex
+
+##### General Trends
+
+```{r message = FALSE, warning = FALSE, fig.width = 10, fig.height = 6}
+col_2 = c("#FF5959", "#003A6F")
+
+combined %>%
+  group_by(year, sex) %>%
+  summarise(count = n()) %>%
+  
+  ggplot(aes(y = count, x = sex, fill = sex)) +
+  geom_col() + 
+  geom_text(aes(label = count),
+            family = "Quicksand",
+            vjust = -0.5) +
+  facet_wrap(~year) +
+  scale_fill_manual(values = col_2) +
+  labs(y = "Count", x = "Sex",
+       title = "Graph of Sex of Labor Force across Time Periods") +
+  theme(legend.position = "none") 
+```
+
+<br>
+
+##### Percent of Labor Force
+
+```{r}
+combined %>%
+  group_by(year, sex) %>%
+  summarise(count = n()) %>%
+  mutate(count = case_when(
+    year == 1850 ~ count / var_lf_1850,
+    year == 1880 ~ count / var_lf_1880,
+    year == 1910 ~ count / var_lf_1910),
+    count = round(count * 100,
+                  digits = 1)) %>%
+  
+  ggplot(aes(y = count, x = sex, fill = sex)) +
+  geom_col() + 
+  geom_text(aes(label = paste0(count, "%")),
+            family = "Quicksand",
+            vjust = -0.5) +
+  facet_wrap(~year) +
+  scale_fill_manual(values = col_2) +
+  labs(y = "Count", x = "Sex",
+       title = "Graph of Sex of Percentage of Labor Force across Time Periods") +
+  theme(legend.position = "none") 
+```
+
+<br>
+
+#### Race
+
+##### General Trends
+
+```{r message = FALSE, warning = FALSE, fig.width = 10, fig.height = 6}
+combined %>%
+  group_by(year, race) %>%
+  summarise(count = n()) %>%
+  
+  ggplot(aes(y = count, x = race, fill = race)) +
+  geom_col() + 
+  geom_text(aes(label = count),
+            family = "Quicksand",
+            hjust = 0) +
+  facet_wrap(~year, scales = "free_x") +
+  coord_flip() +
+  scale_y_continuous(expand = expand_scale(mult = c(0, 0.5))) +
+  labs(y = "Count", x = "Race",
+       title = "Graph of Race of Labor Force across Time Periods") +
+  theme(legend.position = "none",
+        axis.text.x = element_text(size = 7))
+```
+
+<br>
+
+##### Percent of Labor Force
+
+```{r message = FALSE, warning = FALSE, fig.width = 10, fig.height = 6}
+combined %>%
+  group_by(year, race) %>%
+  summarise(count = n()) %>%
+  mutate(count = case_when(
+    year == 1850 ~ count / var_lf_1850,
+    year == 1880 ~ count / var_lf_1880,
+    year == 1910 ~ count / var_lf_1910),
+    count = round(count * 100,
+                  digits = 1)) %>%
+  
+  ggplot(aes(y = count, x = race, fill = race)) +
+  geom_col() + 
+  geom_text(aes(label = paste0(count, "%")),
+            family = "Quicksand",
+            hjust = 0) +
+  facet_wrap(~year, scales = "free_x") +
+  coord_flip() +
+  scale_y_continuous(expand = expand_scale(mult = c(0, 0.5))) +
+  labs(y = "Count", x = "Race",
+       title = "Graph of Percentage of Race of Labor Force across Time Periods") +
+  theme(legend.position = "none",
+        axis.text.x = element_text(size = 7))
+```
+
+<br>
+
+#### City
+
+##### General Trends
+
+```{r message = FALSE, warning = FALSE, fig.width = 10, fig.height = 6}
+combined %>%
+  group_by(year, city) %>%
+  summarise(count = n()) %>%
+  
+  ggplot(aes(y = count, x = city, fill = city)) +
+  geom_col() + 
+  geom_text(aes(label = count),
+            family = "Quicksand",
+            hjust = 0) +
+  facet_wrap(~year) +
+  coord_flip() +
+  scale_fill_manual(values = col_2) +
+  scale_y_continuous(expand = expand_scale(mult = c(0, 0.5))) +
+  labs(y = "Count", x = "Borough",
+       title = "Graph of Borough of Labor Force across Time Periods") +
+  theme(legend.position = "none")
+```
+
+<br>
+
+##### Percent of Labor Force
+
+```{r message = FALSE, warning = FALSE, fig.width = 10, fig.height = 6}
+combined %>%
+  group_by(year, city) %>%
+  summarise(count = n()) %>%
+  mutate(count = case_when(
+    year == 1850 ~ count / var_lf_1850,
+    year == 1880 ~ count / var_lf_1880,
+    year == 1910 ~ count / var_lf_1910),
+    count = round(count * 100,
+                  digits = 1)) %>%
+  
+  ggplot(aes(y = count, x = city, fill = city)) +
+  geom_col() + 
+  geom_text(aes(label = paste0(count, "%")),
+            family = "Quicksand",
+            hjust = 0) +
+  facet_wrap(~year) +
+  coord_flip() +
+  scale_fill_manual(values = col_2) +
+  scale_y_continuous(expand = expand_scale(mult = c(0, 0.5))) +
+  labs(y = "Count", x = "Borough",
+       title = "Graph of Percent of Borough of Labor Force across Time Periods") +
+  theme(legend.position = "none")
+```
+
+<br>
+
+### 3. Analysis of Occupation {.tabset .tabset-fade}
+
+#### Datatable of General Counts {.tabset .tabset-fade}
+
+##### Overall 
+
+```{r}
+combined %>%
+  group_by(occstr) %>%
+  summarise(count = n()) %>%
+  mutate(perc = round(count / var_lf * 100,
+                      digits = 2)) %>%
+  arrange(desc(count)) %>%
+  head(200) %>% # Datatable can only handle a limited amount of data
+  datatable()
+```
+<br>
+
+##### 1850 
+
+```{r}
+combined %>%
+  filter(year == 1850) %>%
+  group_by(occstr) %>%
+  summarise(count = n()) %>%
+  mutate(perc = round(count / var_lf_1850 * 100,
+                      digits = 2)) %>%
+  arrange(desc(count)) %>%
+  head(200) %>% # Datatable can only handle a limited amount of data
+  datatable()
+```
+<br>
+
+##### 1880 
+
+```{r}
+combined %>%
+  filter(year == 1880) %>%
+  group_by(occstr) %>%
+  summarise(count = n()) %>%
+  mutate(perc = round(count / var_lf_1880 * 100,
+                      digits = 2)) %>%
+  arrange(desc(count)) %>%
+  head(200) %>% # Datatable can only handle a limited amount of data
+  datatable()
+```
+<br>
+
+##### 1910 
+
+```{r}
+combined %>%
+  filter(year == 1910) %>%
+  group_by(occstr) %>%
+  summarise(count = n()) %>%
+  mutate(perc = round(count / var_lf_1910 * 100,
+                      digits = 2)) %>%
+  arrange(desc(count)) %>%
+  head(200) %>% # Datatable can only handle a limited amount of data
+  datatable()
+```
+<br>
+
+#### Graph of General Counts {.tabset .tabset-fade}
+
+##### General Trends
+
+```{r message = FALSE, warning = FALSE, fig.width = 10, fig.height = 6}
+combined %>%
+  group_by(year, occstr) %>%
+  summarise(count = n()) %>%
+  group_by(year) %>%
+  top_n(10, wt = count) %>%
+  
+  ggplot(aes(y = count,
+             x = reorder_within(occstr, count, year),
+             fill = year)) +
+  geom_col() +
+  geom_text(aes(label = count),
+            family = "Quicksand",
+            hjust = 0) +
+  facet_wrap(~year, scales = "free_y") +
+  scale_x_reordered() +
+  scale_y_continuous(expand = expand_scale(mult = c(0, 0.5))) +
+  scale_fill_manual(values = col_3) +
+  coord_flip() +
+  labs(y = "Count", x = "Occupation",
+       title = "Graph of Most Popular Occupations across Time Periods") +
+  theme(legend.position = "none")
+```
+
+<br>
+
+##### Percent of Labor Force
+
+```{r message = FALSE, warning = FALSE, fig.width = 10, fig.height = 6}
+combined %>%
+  group_by(year, occstr) %>%
+  summarise(count = n()) %>%
+  group_by(year) %>%
+  top_n(10, wt = count) %>%
+  mutate(count = case_when(
+    year == 1850 ~ count / var_lf_1850,
+    year == 1880 ~ count / var_lf_1880,
+    year == 1910 ~ count / var_lf_1910),
+    count = round(count * 100,
+                  digits = 1)) %>%
+  
+  ggplot(aes(y = count,
+             x = reorder_within(occstr, count, year),
+             fill = year)) +
+  geom_col() +
+  geom_text(aes(label = paste0(count, "%")),
+            family = "Quicksand",
+            hjust = 0) +
+  facet_wrap(~year, scales = "free_y") +
+  scale_x_reordered() +
+  scale_y_continuous(expand = expand_scale(mult = c(0, 0.5))) +
+  scale_fill_manual(values = col_3) +
+  coord_flip() +
+  labs(y = "Count", x = "Occupation",
+       title = "Graph of Most Popular Occupations across Time Periods as Percentage of Labor Force") +
+  theme(legend.position = "none")
+```

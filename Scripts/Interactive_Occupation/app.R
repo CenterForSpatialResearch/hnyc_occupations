@@ -7,6 +7,7 @@ library(shinythemes)
 library(extrafont)
 library(extrafontdb)
 loadfonts()
+library(tidytext)
 
 
 df = readr::read_csv("../../data/combined.csv")
@@ -93,13 +94,16 @@ server <- function(input, output) {
     } else {
 
       plot = df_filtered() %>%
-        ggplot(aes(y = count, x = reorder(occ, count), fill = facet_var)) + 
+        ggplot(aes(y = count, 
+                   x = reorder_within(occ, count, facet_var), 
+                   fill = facet_var)) + 
         geom_col() +
         labs(title = paste0("Graph of Occupation Counts of Top ", 
                             input$n_occupations," Occupations in ", 
                             input$year, " by " , input$facet)) +
-        facet_wrap(~facet_var) +
-        scale_fill_brewer(palette = "Set3")
+        facet_wrap(~facet_var, scales = "free_y") +
+        scale_fill_brewer(palette = "Set3") + 
+        scale_x_reordered()
     }
     
     ## If else for if text labels need to be added
@@ -132,7 +136,8 @@ server <- function(input, output) {
       theme_minimal() +
       theme(panel.grid.minor = element_blank(),
             legend.position = "none",
-            text = element_text(family = "Quicksand"))
+            text = element_text(family = "Quicksand",
+                                colour = "black"))
     
     plot
     
@@ -176,7 +181,7 @@ server <- function(input, output) {
     
     if (input$save) {
       ggsave(filename = paste0("image", count,".png"))
-      count = count + 1aaaaaaaaa
+      count = count + 1
     }
     
     

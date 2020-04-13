@@ -236,8 +236,15 @@ occ_modifier = function(x) {
       str_detect(x, pattern = "publish(er|ing)")              ~ "publisher",
       str_detect(x, pattern = "carver")                       ~ "carver",
       str_detect(x, pattern = "book\\s?folder")               ~ "book folder",
-      
-      # Breakpoint for occupation with counts greater than 1000
+      str_detect(x, pattern = "^private$")                    ~ "soldier",
+      str_detect(x, pattern = "watch//s?maker")               ~ "watch maker",
+      str_detect(x, pattern = "junk")                         ~ "junk dealer",
+      str_detect(x, pattern = "^folder$")                     ~ "book folder",
+      # priority given to book folder
+      str_detect(x, pattern = "machine\\s?operat(o|e)r")      ~ "machine operator",
+      str_detect(x, pattern = "patt?ern")                     ~ "pattern maker",
+      str_detect(x, pattern = "journalist")                   ~ "journalist",
+      str_detect(x, pattern = "silk")                         ~ "silk weaver",
       
       #str_detect(x, pattern = "maker")                 ~ "maker",
       TRUE ~ x
