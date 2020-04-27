@@ -1,0 +1,13 @@
+base
+dplyr
+ggplot2
+extrafont
+stringr
+tidyr
+DT
+tidytext
+psych
+sf
+leaflet
+magrittr
+ggpubr

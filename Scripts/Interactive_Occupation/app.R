@@ -10,7 +10,7 @@ loadfonts()
 library(tidytext)
 
 
-df = readr::read_csv("../../data/combined.csv")
+df = readr::read_csv("../../data/combined_old.csv")
 df = df %>% mutate(sex = factor(sex),
                    race = factor(race),
                    city = factor(city),

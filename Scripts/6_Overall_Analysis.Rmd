@@ -30,16 +30,16 @@ The code is shown in the next three tabs to show any changes that may have been 
 ```{r message = FALSE, warning = FALSE}
 library(dplyr)
 library(ggplot2)
-library(treemap)
 library(extrafont)
 library(stringr)
 loadfonts()
-library(knitr)
-library(kableExtra)
 library(tidyr)
 library(DT)
 library(tidytext)
 library(psych)
+library(sf)
+library(leaflet)
+library(ggpubr)
 
 # Theme setting for visualisations
 theme_set(theme_minimal() + 
@@ -54,7 +54,7 @@ source("0_OCC_Modifier.R")
 
 #### Loading 1850
 
-```{r eval = FALSE}
+```{r}
 # Loading
 mn_1850 = readr::read_csv("../Data/census_1850_occ_mn.csv") %>% mutate(city = "Manhattan")
 bk_1850 = readr::read_csv("../Data/census_1850_occ_bk.csv") %>% mutate(city = "Brooklyn")
@@ -65,7 +65,7 @@ OCC_1950 = readr::read_csv("../Data/OCC1950.csv")
 combined_1850 = rbind(mn_1850, bk_1850) %>% 
   select(age, sex, race, labforce,
          occ, city, occ1950, occstr, 
-         enumdist) %>%
+         enumdist, ward, ind1950) %>%
   left_join(OCC_1880, by = c("occ" = "code")) %>%
   left_join(OCC_1950, by = c("occ1950" = "code")) %>%
   mutate(race = factor(race,
@@ -87,7 +87,7 @@ combined_1850 = rbind(mn_1850, bk_1850) %>%
   # Data prepping for combining
   filter(labforce == "Yes, in the labor force") %>%
   select(year, age, sex, race, city, enumdist, 
-         occstr, occ_label, occ1950_label) %>%
+         occstr, occ_label, occ1950_label, ward, ind1950) %>%
   mutate(race = as.character(race),
          sex = as.character(sex))
 
@@ -169,7 +169,8 @@ combined_1910 = rbind(mn_1910, bk_1910) %>%
          occstr, occ_label = occ1950_label) %>%
   mutate(occ1950_label = occ_label,
          sex = as.character(sex),
-         race = as.character(race))
+         race = as.character(race),
+         enumdist = as.numeric(enumdist))
 
 rm(OCC_1950)
 rm(mn_1910)
@@ -211,6 +212,83 @@ var_lf = var_lf_1850 + var_lf_1880 + var_lf_1910
 ```
 
 <br>
+
+#### shp Files
+
+```{r}
+top_n_occupations = function(n, year_in = "all") {
+  
+  if (year_in == "all") {
+    
+    return(
+      combined %>%
+        filter(occ1950_label != "Not yet classified") %>%
+        group_by(occ1950_label) %>%
+        summarise(count = n()) %>%
+        arrange(desc(count)) %>%
+        head(n) %>%
+        .$occ1950_label
+    ) 
+  } else if (year_in %in% c("1850", "1880", "1910")) {
+    
+    return (
+      combined %>%
+        filter(year == year_in & occ1950_label != "Not yet classified") %>%
+        group_by(occ1950_label) %>%
+        summarise(count = n()) %>%
+        arrange(desc(count)) %>%
+        head(n) %>%
+        .$occ1950_label
+    )
+  }
+}
+```
+
+```{r}
+bk_1850 = st_read("../Data/shpfiles/bk_shapefiles/Ward_1850_BK.shp",
+                  stringsAsFactors = FALSE) %>%
+  select(Ward_Num, geometry)
+mn_1850 = st_read("../Data/shpfiles/mn_shapefiles/Ward_1850_MN.shp",
+                  stringsAsFactors = FALSE) %>%
+  select(Ward_Num, geometry)
+
+shp_1850 = rbind(bk_1850, mn_1850) %>%
+  st_transform(crs = 4326)
+
+rm(bk_1850)
+rm(mn_1850)
+```
+
+```{r}
+bk_1880 = st_read("../Data/shpfiles/bk_shapefiles/ED_1880_S4_BK.shp",
+                  stringsAsFactors = FALSE) %>% 
+  select(ED, geometry)
+mn_1880 = st_read("../Data/shpfiles/mn_shapefiles/ED_1880_MN.shp",
+                  stringsAsFactors = FALSE) %>%
+  select(ED = ed80, geometry)
+
+shp_1880 = rbind(bk_1880, mn_1880) %>%
+  st_transform(crs = 4326)
+
+rm(bk_1880)
+rm(mn_1880)
+```
+
+
+```{r}
+bk_1910 = st_read("../Data/shpfiles/bk_shapefiles/Brooklyn_1910.shp",
+                  stringsAsFactors = FALSE)
+mn_1910 = st_read("../Data/shpfiles/mn_shapefiles/Manhattan_1910.shp",
+                  stringsAsFactors = FALSE)
+
+shp_1910 = rbind(bk_1910, mn_1910) %>%
+  mutate(ED = as.numeric(ED)) %>%
+  st_transform(crs = 4326)
+
+rm(bk_1910)
+rm(mn_1910)
+```
+
 
 ### 2. Analysis of Demographics {.tabset .tabset-fade}
 
@@ -423,7 +501,7 @@ combined %>%
 
 ```{r}
 combined %>%
-  group_by(occstr) %>%
+  group_by(occ1950_label) %>%
   summarise(count = n()) %>%
   mutate(perc = round(count / var_lf * 100,
                       digits = 2)) %>%
@@ -438,7 +516,7 @@ combined %>%
 ```{r}
 combined %>%
   filter(year == 1850) %>%
-  group_by(occstr) %>%
+  group_by(occ1950_label) %>%
   summarise(count = n()) %>%
   mutate(perc = round(count / var_lf_1850 * 100,
                       digits = 2)) %>%
@@ -453,7 +531,7 @@ combined %>%
 ```{r}
 combined %>%
   filter(year == 1880) %>%
-  group_by(occstr) %>%
+  group_by(occ1950_label) %>%
   summarise(count = n()) %>%
   mutate(perc = round(count / var_lf_1880 * 100,
                       digits = 2)) %>%
@@ -468,7 +546,7 @@ combined %>%
 ```{r}
 combined %>%
   filter(year == 1910) %>%
-  group_by(occstr) %>%
+  group_by(occ1950_label) %>%
   summarise(count = n()) %>%
   mutate(perc = round(count / var_lf_1910 * 100,
                       digits = 2)) %>%
@@ -484,13 +562,13 @@ combined %>%
 
 ```{r message = FALSE, warning = FALSE, fig.width = 10, fig.height = 6}
 combined %>%
-  group_by(year, occstr) %>%
+  group_by(year, occ1950_label) %>%
   summarise(count = n()) %>%
   group_by(year) %>%
   top_n(10, wt = count) %>%
   
   ggplot(aes(y = count,
-             x = reorder_within(occstr, count, year),
+             x = reorder_within(occ1950_label, count, year),
              fill = year)) +
   geom_col() +
   geom_text(aes(label = count),
@@ -512,7 +590,7 @@ combined %>%
 
 ```{r message = FALSE, warning = FALSE, fig.width = 10, fig.height = 6}
 combined %>%
-  group_by(year, occstr) %>%
+  group_by(year, occ1950_label) %>%
   summarise(count = n()) %>%
   group_by(year) %>%
   top_n(10, wt = count) %>%
@@ -524,7 +602,7 @@ combined %>%
                   digits = 1)) %>%
   
   ggplot(aes(y = count,
-             x = reorder_within(occstr, count, year),
+             x = reorder_within(occ1950_label, count, year),
              fill = year)) +
   geom_col() +
   geom_text(aes(label = paste0(count, "%")),
@@ -539,3 +617,1396 @@ combined %>%
        title = "Graph of Most Popular Occupations across Time Periods as Percentage of Labor Force") +
   theme(legend.position = "none")
 ```
+
+<br>
+
+### 4. Maps of Counts {.tabset .tabset-fade}
+
+#### 1850 {.tabset .tabset-fade}
+
+##### Leaflet Map of Counts
+
+```{r}
+
+```
+
+##### Distributions of Occupation
+
+__Occupation__
+
+```{r message = FALSE, warning = FALSE, fig.width = 10, fig.height = 6}
+combined_1850 %>%
+  filter(year == 1850 & 
+           occ1950_label %in% top_n_occupations(10, 1850)) %>%
+  group_by(occ1950_label, ward) %>%
+  summarise(count = n()) %>%
+  left_join(shp_1850, ., by = c("Ward_Num" = "ward")) %>%
+  filter(!is.na(occ1950_label)) %>%
+  
+  ggplot() +
+  geom_sf(aes(fill = count),
+          colour = "black",
+          size = 0.25) +
+  facet_wrap(~occ1950_label, nrow = 2) + 
+  scale_fill_viridis_c() + 
+  labs(fill = "Count") +
+  theme(legend.position = "right",
+        axis.text = element_blank(),
+        strip.text.x = element_text(size = 7),
+        legend.key.height = unit(2,"line"),
+        legend.key.width = unit(1,"line"),
+        panel.grid = element_blank())
+```
+
+<br>
+
+__Normalised by size of each ward__
+
+```{r message = FALSE, warning = FALSE, fig.width = 10, fig.height = 6}
+combined_1850 %>%
+  group_by(ward) %>%
+  mutate(ward_size = n()) %>%
+  filter(occ1950_label %in% top_n_occupations(10, 1850)) %>%
+  group_by(occ1950_label, ward, ward_size) %>%
+  summarise(count = n()) %>%
+  mutate(count = count / ward_size * 100) %>%
+  left_join(shp_1850, ., by = c("Ward_Num" = "ward")) %>%
+  filter(!is.na(occ1950_label)) %>%
+  
+  ggplot() +
+  geom_sf(aes(fill = count),
+          colour = "black",
+          size = 0.25) +
+  facet_wrap(~occ1950_label, nrow = 2) + 
+  scale_fill_viridis_c() + 
+  labs(fill = "Count") +
+  theme(legend.position = "right",
+        axis.text = element_blank(),
+        strip.text.x = element_text(size = 7),
+        legend.key.height = unit(2,"line"),
+        legend.key.width = unit(1,"line"),
+        panel.grid = element_blank())
+```
+
+<br>
+
+__Grouped__
+
+```{r message = FALSE, warning = FALSE, fig.width = 10, fig.height = 6}
+combined_1850 %>%
+  filter(year == 1850 & 
+           occ1950_label %in% top_n_occupations(10, 1850)) %>%
+  group_by(occ1950_label, ward) %>%
+  summarise(count = n()) %>%
+  mutate(count = case_when(
+    count <=  500 ~ 1,
+    count <= 1000 ~ 2,
+    count <= 1500 ~ 3,
+    count <= 2000 ~ 4,
+    count <= Inf ~ 5
+  ),
+         count = factor(count,
+                        levels = 1:5,
+                        labels = c("   0 -  500", "501 - 1000",
+                                   "1001 - 1500", "1501 - 2000",
+                                   "2001 -  Inf"))) %>%
+  left_join(shp_1850, ., by = c("Ward_Num" = "ward")) %>%
+  filter(!is.na(occ1950_label)) %>%
+  
+  ggplot() +
+  geom_sf(aes(fill = count),
+          colour = "black",
+          size = 0.25) +
+  facet_wrap(~occ1950_label, nrow = 2) + 
+  scale_fill_viridis_d() + 
+  labs(fill = "Count") +
+  theme(legend.position = "right",
+        axis.text = element_blank(),
+        strip.text.x = element_text(size = 7),
+        legend.key.height = unit(2,"line"),
+        legend.key.width = unit(1,"line"),
+        panel.grid = element_blank())
+```
+
+<br>
+
+__Normalised and grouped by size of each ward__
+
+```{r message = FALSE, warning = FALSE, fig.width = 10, fig.height = 6}
+combined_1850 %>%
+  group_by(ward) %>%
+  mutate(ward_size = n()) %>%
+  filter(occ1950_label %in% top_n_occupations(10, 1850)) %>%
+  group_by(occ1950_label, ward, ward_size) %>%
+  summarise(count = n()) %>%
+  mutate(count = count / ward_size * 100,
+         count = case_when(
+           count <= 5 ~ 1,
+           count <= 10 ~ 2,
+           count <= 15 ~ 3,
+           count <= 20 ~ 4,
+           count <= 100 ~ 5
+         ),
+         count = factor(count,
+                        levels = 1:5,
+                        labels = c(" 0 - 5", " 6 - 10",
+                                   "11 - 15", "16 - 20",
+                                   "21 - 100"))) %>%
+  left_join(shp_1850, ., by = c("Ward_Num" = "ward")) %>%
+  filter(!is.na(occ1950_label)) %>%
+  
+  ggplot() +
+  geom_sf(aes(fill = count),
+          colour = "black",
+          size = 0.25) +
+  facet_wrap(~occ1950_label, nrow = 2) + 
+  scale_fill_viridis_d() + 
+  labs(fill = "Count") +
+  theme(legend.position = "right",
+        axis.text = element_blank(),
+        strip.text.x = element_text(size = 7),
+        legend.key.height = unit(2,"line"),
+        legend.key.width = unit(1,"line"),
+        panel.grid = element_blank())
+```
+
+<br>
+
+##### Distributions of Race
+
+__Race__
+
+```{r message = FALSE, warning = FALSE, fig.width = 10, fig.height = 6}
+combined_1850 %>%
+  group_by(race, ward) %>%
+  summarise(count = n()) %>%
+  left_join(shp_1850, ., by = c("Ward_Num" = "ward")) %>%
+  filter(!is.na(race)) %>%
+  
+  ggplot() +
+  geom_sf(aes(fill = count),
+          colour = "black",
+          size = 0.25) +
+  facet_wrap(~race, nrow = 2) + 
+  scale_fill_viridis_c() + 
+  labs(fill = "Count") +
+  theme(legend.position = "right",
+        axis.text = element_blank(),
+        strip.text.x = element_text(size = 7),
+        legend.key.height = unit(2,"line"),
+        legend.key.width = unit(1,"line"),
+        panel.grid = element_blank())
+```
+
+<br>
+
+__Normalised by size of each ward__
+
+```{r message = FALSE, warning = FALSE, fig.width = 10, fig.height = 6}
+combined_1850 %>%
+  group_by(ward) %>%
+  mutate(ward_size = n()) %>%
+  group_by(race, ward, ward_size) %>%
+  summarise(count = n()) %>%
+  mutate(count = count / ward_size * 100) %>%
+  left_join(shp_1850, ., by = c("Ward_Num" = "ward")) %>%
+  filter(!is.na(race)) %>%
+  
+  ggplot() +
+  geom_sf(aes(fill = count),
+          colour = "black",
+          size = 0.25) +
+  facet_wrap(~race, nrow = 2) + 
+  scale_fill_viridis_c() + 
+  labs(fill = "Count") +
+  theme(legend.position = "right",
+        axis.text = element_blank(),
+        strip.text.x = element_text(size = 7),
+        legend.key.height = unit(2,"line"),
+        legend.key.width = unit(1,"line"),
+        panel.grid = element_blank())
+```
+
+<br>
+
+__Grouped__
+
+```{r message = FALSE, warning = FALSE, fig.width = 10, fig.height = 6}
+combined_1850 %>%
+  group_by(race, ward) %>%
+  summarise(count = n()) %>%
+  mutate(count = case_when(
+    count <= 5000 ~ 1,
+    count <= 7500 ~ 2,
+    count <= 10000 ~ 3,
+    count <= 12500 ~ 4,
+    count <= Inf ~ 5
+  ),
+         count = factor(count,
+                        levels = 1:5,
+                        labels = c("    0 -  5000", " 5001 -  7500",
+                                   " 7501 - 10000", "10001 - 12500",
+                                   "12501 -   Inf"))) %>%
+  left_join(shp_1850, ., by = c("Ward_Num" = "ward")) %>%
+  filter(!is.na(race)) %>%
+  
+  ggplot() +
+  geom_sf(aes(fill = count),
+          colour = "black",
+          size = 0.25) +
+  facet_wrap(~race, nrow = 2) + 
+  scale_fill_viridis_d() + 
+  labs(fill = "Count") +
+  theme(legend.position = "right",
+        axis.text = element_blank(),
+        strip.text.x = element_text(size = 7),
+        legend.key.height = unit(2,"line"),
+        legend.key.width = unit(1,"line"),
+        panel.grid = element_blank())
+```
+
+<br>
+
+__Normalised and grouped by size of each ward__
+
+```{r message = FALSE, warning = FALSE, fig.width = 10, fig.height = 6}
+combined_1850 %>%
+  group_by(ward) %>%
+  mutate(ward_size = n()) %>%
+  group_by(race, ward, ward_size) %>%
+  summarise(count = n()) %>%
+  mutate(count = count / ward_size * 100,
+         count = case_when(
+           count <= 80 ~ 1,
+           count <= 85 ~ 2,
+           count <= 90 ~ 3,
+           count <= 95 ~ 4,
+           count <= 100 ~ 5
+         ),
+         count = factor(count,
+                        levels = 1:5,
+                        labels = c(" 0 - 80", " 81 - 85",
+                                   "86 - 90", "91 - 95",
+                                   "96 - 100"))) %>%
+  left_join(shp_1850, ., by = c("Ward_Num" = "ward")) %>%
+  filter(!is.na(race)) %>%
+  
+  ggplot() +
+  geom_sf(aes(fill = count),
+          colour = "black",
+          size = 0.25) +
+  facet_wrap(~race, nrow = 2) + 
+  scale_fill_viridis_d() + 
+  labs(fill = "Count") +
+  theme(legend.position = "right",
+        axis.text = element_blank(),
+        strip.text.x = element_text(size = 7),
+        legend.key.height = unit(2,"line"),
+        legend.key.width = unit(1,"line"),
+        panel.grid = element_blank())
+```
+
+<br>
+
+#### 1880 {.tabset .tabset-fade}
+
+##### Leaflet Map of Counts
+
+##### Distributions of Occupation
+
+<br>
+
+__Occupation__
+
+```{r message = FALSE, warning = FALSE, fig.width = 8, fig.height = 8}
+combined %>%
+  filter(year == 1880 & 
+           occ1950_label %in% top_n_occupations(10, 1880)) %>%
+  group_by(occ1950_label, enumdist) %>%
+  summarise(count = n()) %>%
+  left_join(shp_1880, ., by = c("ED" = "enumdist")) %>%
+  filter(!is.na(occ1950_label)) %>%
+  
+  ggplot() +
+  geom_sf(aes(fill = count),
+          colour = "black",
+          size = 0.25) +
+  facet_wrap(~occ1950_label, nrow = 2) + 
+  scale_fill_viridis_c() + 
+  labs(fill = "Count") +
+  theme(legend.position = "right",
+        axis.text = element_blank(),
+        strip.text.x = element_text(size = 7),
+        legend.key.height = unit(2,"line"),
+        legend.key.width = unit(1,"line"),
+        panel.grid = element_blank())
+```
+
+<br>
+
+__Normalised by size of each enumeration district__
+
+```{r message = FALSE, warning = FALSE, fig.width = 8, fig.height = 8}
+combined %>%
+  filter(year == 1880) %>%
+  group_by(enumdist) %>%
+  mutate(enum_size = n()) %>%
+  filter(occ1950_label %in% top_n_occupations(10, 1880)) %>%
+  group_by(occ1950_label, enumdist, enum_size) %>%
+  summarise(count = n()) %>%
+  mutate(count = count / enum_size * 100) %>%
+  left_join(shp_1880, ., by = c("ED" = "enumdist")) %>%
+  filter(!is.na(occ1950_label)) %>%
+  
+  ggplot() +
+  geom_sf(aes(fill = count),
+          colour = "black",
+          size = 0.25) +
+  facet_wrap(~occ1950_label, nrow = 2) + 
+  scale_fill_viridis_c() + 
+  labs(fill = "Count") +
+  theme(legend.position = "right",
+        axis.text = element_blank(),
+        strip.text.x = element_text(size = 7),
+        legend.key.height = unit(2,"line"),
+        legend.key.width = unit(1,"line"),
+        panel.grid = element_blank())
+```
+
+<br>
+
+__Grouped__
+
+```{r message = FALSE, warning = FALSE, fig.width = 8, fig.height = 8}
+combined %>%
+  filter(year == 1880 & 
+           occ1950_label %in% top_n_occupations(10, 1880)) %>%
+  group_by(occ1950_label, enumdist) %>%
+  summarise(count = n()) %>%
+  mutate(count = case_when(
+    count <= 100 ~ 1,
+    count <= 200 ~ 2,
+    count <= 300 ~ 3,
+    count <= 400 ~ 4,
+    count <= Inf ~ 5
+  ),
+         count = factor(count,
+                        levels = 1:5,
+                        labels = c("  0 - 100", "101 - 200",
+                                   "201 - 300", "301 - 400",
+                                   "401 - Inf"))) %>%
+  
+  left_join(shp_1880, ., by = c("ED" = "enumdist")) %>%
+  filter(!is.na(occ1950_label)) %>%
+  
+  ggplot() +
+  geom_sf(aes(fill = count),
+          colour = "black",
+          size = 0.25) +
+  facet_wrap(~occ1950_label, nrow = 2) +
+  scale_fill_viridis_d() +
+  labs(fill = "Count") +
+  theme(legend.position = "right",
+        axis.text = element_blank(),
+        strip.text.x = element_text(size = 7),
+        legend.key.height = unit(2,"line"),
+        legend.key.width = unit(1,"line"),
+        panel.grid = element_blank())
+```
+
+<br>
+
+__Grouped and Normalised by size of each enumeration district__
+
+```{r message = FALSE, warning = FALSE, fig.width = 8, fig.height = 8}
+combined %>%
+  filter(year == 1880) %>%
+  group_by(enumdist) %>%
+  mutate(enum_size = n()) %>%
+  filter(occ1950_label %in% top_n_occupations(10, 1880)) %>%
+  group_by(occ1950_label, enumdist, enum_size) %>%
+  summarise(count = n()) %>%
+  mutate(count = count / enum_size * 100,
+         count = case_when(
+    count <= 15 ~ 1,
+    count <= 30 ~ 2,
+    count <= 45 ~ 3,
+    count <= 60 ~ 4,
+    count <= 100 ~ 5
+  ),
+         count = factor(count,
+                        levels = 1:5,
+                        labels = c(" 0 - 15", "16 - 30",
+                                   "31 - 45", "46 - 60",
+                                   "61 - 100"))) %>%
+  left_join(shp_1880, ., by = c("ED" = "enumdist")) %>%
+  filter(!is.na(occ1950_label)) %>%
+  
+  ggplot() +
+  geom_sf(aes(fill = count),
+          colour = "black",
+          size = 0.25) +
+  facet_wrap(~occ1950_label, nrow = 2) + 
+  scale_fill_viridis_d() + 
+  labs(fill = "Count") +
+  theme(legend.position = "right",
+        axis.text = element_blank(),
+        strip.text.x = element_text(size = 7),
+        legend.key.height = unit(2,"line"),
+        legend.key.width = unit(1,"line"),
+        panel.grid = element_blank())
+```
+
+<br>
+
+##### Distributions of Race
+
+<br>
+
+__Race__
+
+```{r message = FALSE, warning = FALSE, fig.width = 10, fig.height = 6}
+combined %>%
+  filter(year == 1880) %>%
+  group_by(race, enumdist) %>%
+  summarise(count = n()) %>%
+  left_join(shp_1880, ., by = c("ED" = "enumdist")) %>%
+  filter(!is.na(race)) %>%
+  
+  ggplot() +
+  geom_sf(aes(fill = count), 
+          colour = "black",
+          size = 0.25) +
+  facet_wrap(~race, nrow = 2) + 
+  scale_fill_viridis_c() + 
+  labs(fill = "Count") +
+  theme(legend.position = "right",
+        axis.text = element_blank(),
+        strip.text.x = element_text(size = 7),
+        legend.key.height = unit(2,"line"),
+        legend.key.width = unit(1,"line"),
+        panel.grid = element_blank())
+```
+
+<br>
+
+__Normalised by size of each enumeration district__
+
+```{r message = FALSE, warning = FALSE, fig.width = 10, fig.height = 6}
+combined %>%
+  filter(year == 1880) %>%
+  group_by(enumdist) %>%
+  mutate(enum_size = n()) %>%
+  group_by(race, enumdist, enum_size) %>%
+  summarise(count = n()) %>%
+  mutate(count = count / enum_size * 100) %>%
+  left_join(shp_1880, ., by = c("ED" = "enumdist")) %>%
+  filter(!is.na(race)) %>%
+  
+  ggplot() +
+  geom_sf(aes(fill = count),
+          colour = "black",
+          size = 0.25) +
+  facet_wrap(~race, nrow = 2) + 
+  scale_fill_viridis_c() + 
+  labs(fill = "Count") +
+  theme(legend.position = "right",
+        axis.text = element_blank(),
+        strip.text.x = element_text(size = 7),
+        legend.key.height = unit(2,"line"),
+        legend.key.width = unit(1,"line"),
+        panel.grid = element_blank())
+```
+
+<br>
+
+__Grouped__
+
+```{r message = FALSE, warning = FALSE, fig.width = 10, fig.height = 6}
+combined %>%
+  filter(year == 1880) %>%
+  group_by(race, enumdist) %>%
+  summarise(count = n()) %>%
+  mutate(count = case_when(
+    count <= 500 ~ 1,
+    count <= 1000 ~ 2,
+    count <= 1500 ~ 3,
+    count <= 2000 ~ 4,
+    count <= Inf ~ 5
+  ),
+  count = factor(count,
+                 levels = 1:5,
+                 labels = c("   0 -  500", " 501 - 1000",
+                            "1001 - 1500", "1501 - 2000",
+                            "2001 -  Inf"))) %>%
+  
+  left_join(shp_1880, ., by = c("ED" = "enumdist")) %>%
+  filter(!is.na(race)) %>%
+  
+  ggplot() +
+  geom_sf(aes(fill = count), 
+          colour = "black",
+          size = 0.25) +
+  facet_wrap(~race, nrow = 2) + 
+  scale_fill_viridis_d() + 
+  labs(fill = "Count") +
+  theme(legend.position = "right",
+        axis.text = element_blank(),
+        strip.text.x = element_text(size = 7),
+        legend.key.height = unit(2,"line"),
+        legend.key.width = unit(1,"line"),
+        panel.grid = element_blank())
+```
+
+<br>
+
+__Grouped and Normalised by size of each enumeration district__
+
+```{r message = FALSE, warning = FALSE, fig.width = 10, fig.height = 6}
+combined %>%
+  filter(year == 1880) %>%
+  group_by(enumdist) %>%
+  mutate(enum_size = n()) %>%
+  group_by(race, enumdist, enum_size) %>%
+  summarise(count = n()) %>%
+  mutate(count = count / enum_size * 100,
+         count = case_when(
+           count <= 20 ~ 1,
+           count <= 40 ~ 2,
+           count <= 60 ~ 3,
+           count <= 80 ~ 4,
+           count <= 100 ~ 5
+         ),
+         count = factor(count,
+                        levels = 1:5,
+                        labels = c(" 0 - 20", "21 - 40",
+                                   "41 - 60", "61 - 80",
+                                   "81 - 100"))) %>%
+  left_join(shp_1880, ., by = c("ED" = "enumdist")) %>%
+  filter(!is.na(race)) %>%
+  
+  ggplot() +
+  geom_sf(aes(fill = count),
+          colour = "black",
+          size = 0.25) +
+  facet_wrap(~race, nrow = 2) + 
+  scale_fill_viridis_d() + 
+  labs(fill = "Count") +
+  theme(legend.position = "right",
+        axis.text = element_blank(),
+        strip.text.x = element_text(size = 7),
+        legend.key.height = unit(2,"line"),
+        legend.key.width = unit(1,"line"),
+        panel.grid = element_blank())
+```
+<br>
+
+
+#### 1910 {.tabset .tabset-fade}
+
+##### Leaflet Map of Counts
+
+```{r message = FALSE, warning = FALSE, fig.width = 10, fig.height = 6}
+sub = combined %>%
+  filter(year == 1910) %>%
+  group_by(enumdist) %>%
+  summarise(count = n()) %>% 
+  left_join(shp_1910, ., by = c("ED" = "enumdist"))
+
+bins <- c(0, 500, 1000, 1500, 2000, 2500, 3000)
+pal <- colorBin("YlOrRd", 
+                domain = sub$count, 
+                bins = bins)
+
+label = paste("<b>Count:</b>", sub$count) %>% 
+  lapply(htmltools::HTML)
+
+sub %>%
+  leaflet() %>%
+  addProviderTiles("CartoDB.Positron") %>%
+  setView(lat = 40.7128, lng = -73.9500, zoom = 11) %>%
+  addPolygons(fillColor = ~pal(count),
+              fillOpacity = 0.7,
+              weight = 0.25,
+              color = "black",
+              label = label) %>%
+  addLegend(pal = pal,
+            values = ~count,
+            position = "bottomright")
+  
+```
+
+<br>
+
+##### Distributions of Occupation
+
+<br>
+
+__Occupation__
+
+```{r message = FALSE, warning = FALSE, fig.width = 8, fig.height = 8, cache = TRUE}
+combined %>%
+  filter(year == 1910 & 
+           occ1950_label %in% top_n_occupations(10, 1910)) %>%
+  group_by(occ1950_label, enumdist) %>%
+  summarise(count = n()) %>%
+  left_join(shp_1910, ., by = c("ED" = "enumdist")) %>%
+  filter(!is.na(occ1950_label)) %>%
+  
+  ggplot() +
+  geom_sf(aes(fill = count),
+          colour = "black",
+          size = 0.25) +
+  facet_wrap(~occ1950_label, nrow = 2) + 
+  scale_fill_viridis_c() + 
+  labs(fill = "Count") +
+  theme(legend.position = "right",
+        axis.text = element_blank(),
+        strip.text.x = element_text(size = 7),
+        legend.key.height = unit(2,"line"),
+        legend.key.width = unit(1,"line"),
+        panel.grid = element_blank())
+```
+
+<br>
+
+__Normalised by size of each enumeration district__
+
+```{r message = FALSE, warning = FALSE, fig.width = 8, fig.height = 8, cache = TRUE}
+combined %>%
+  filter(year == 1910) %>%
+  group_by(enumdist) %>%
+  mutate(enum_size = n()) %>%
+  filter(occ1950_label %in% top_n_occupations(10, 1910)) %>%
+  group_by(occ1950_label, enumdist, enum_size) %>%
+  summarise(count = n()) %>%
+  mutate(count = count / enum_size * 100) %>%
+  left_join(shp_1910, ., by = c("ED" = "enumdist")) %>%
+  filter(!is.na(occ1950_label)) %>%
+  
+  ggplot() +
+  geom_sf(aes(fill = count),
+          colour = "black",
+          size = 0.25) +
+  facet_wrap(~occ1950_label, nrow = 2) + 
+  scale_fill_viridis_c() + 
+  labs(fill = "Count") +
+  theme(legend.position = "right",
+        axis.text = element_blank(),
+        strip.text.x = element_text(size = 7),
+        legend.key.height = unit(2,"line"),
+        legend.key.width = unit(1,"line"),
+        panel.grid = element_blank())
+```
+
+<br>
+
+__Grouped__
+
+```{r message = FALSE, warning = FALSE, fig.width = 8, fig.height = 8, cache = TRUE}
+combined %>%
+  filter(year == 1910 & 
+           occ1950_label %in% top_n_occupations(10, 1910)) %>%
+  group_by(occ1950_label, enumdist) %>%
+  summarise(count = n()) %>%
+  mutate(count = case_when(
+    count <= 100 ~ 1,
+    count <= 200 ~ 2,
+    count <= 300 ~ 3,
+    count <= 400 ~ 4,
+    count <= Inf ~ 5
+  ),
+         count = factor(count,
+                        levels = 1:5,
+                        labels = c("  0 - 100", "101 - 200",
+                                   "201 - 300", "301 - 400",
+                                   "401 - Inf"))) %>%
+  
+  left_join(shp_1910, ., by = c("ED" = "enumdist")) %>%
+  filter(!is.na(occ1950_label)) %>%
+  
+  ggplot() +
+  geom_sf(aes(fill = count),
+          colour = "black",
+          size = 0.25) +
+  facet_wrap(~occ1950_label, nrow = 2) +
+  scale_fill_viridis_d() +
+  labs(fill = "Count") +
+  theme(legend.position = "right",
+        axis.text = element_blank(),
+        strip.text.x = element_text(size = 7),
+        legend.key.height = unit(2,"line"),
+        legend.key.width = unit(1,"line"),
+        panel.grid = element_blank())
+```
+
+<br>
+
+__Grouped and Normalised by size of each enumeration district__
+
+```{r message = FALSE, warning = FALSE, fig.width = 8, fig.height = 8, cache = TRUE}
+combined %>%
+  filter(year == 1910) %>%
+  group_by(enumdist) %>%
+  mutate(enum_size = n()) %>%
+  filter(occ1950_label %in% top_n_occupations(10, 1910)) %>%
+  group_by(occ1950_label, enumdist, enum_size) %>%
+  summarise(count = n()) %>%
+  mutate(count = count / enum_size * 100,
+         count = case_when(
+    count <= 20 ~ 1,
+    count <= 40 ~ 2,
+    count <= 60 ~ 3,
+    count <= 80 ~ 4,
+    count <= 100 ~ 5
+  ),
+         count = factor(count,
+                        levels = 1:5,
+                        labels = c(" 0 - 20", "21 - 40",
+                                   "41 - 60", "61 - 80",
+                                   "81 - 100"))) %>%
+  left_join(shp_1910, ., by = c("ED" = "enumdist")) %>%
+  filter(!is.na(occ1950_label)) %>%
+  
+  ggplot() +
+  geom_sf(aes(fill = count),
+          colour = "black",
+          size = 0.25) +
+  facet_wrap(~occ1950_label, nrow = 2) + 
+  scale_fill_viridis_d() + 
+  labs(fill = "Count") +
+  theme(legend.position = "right",
+        axis.text = element_blank(),
+        strip.text.x = element_text(size = 7),
+        legend.key.height = unit(2,"line"),
+        legend.key.width = unit(1,"line"),
+        panel.grid = element_blank())
+```
+
+<br>
+
+##### Distributions of Race
+
+<br>
+
+__Race__
+
+```{r message = FALSE, warning = FALSE, fig.width = 10, fig.height = 6, cache = TRUE}
+combined %>%
+  filter(year == 1910) %>%
+  group_by(race, enumdist) %>%
+  summarise(count = n()) %>%
+  left_join(shp_1910, ., by = c("ED" = "enumdist")) %>%
+  filter(!is.na(race)) %>%
+  
+  ggplot() +
+  geom_sf(aes(fill = count), 
+          colour = "black",
+          size = 0.25) +
+  facet_wrap(~race, nrow = 2) + 
+  scale_fill_viridis_c() + 
+  labs(fill = "Count") +
+  theme(legend.position = "right",
+        axis.text = element_blank(),
+        strip.text.x = element_text(size = 7),
+        legend.key.height = unit(2,"line"),
+        legend.key.width = unit(1,"line"),
+        panel.grid = element_blank())
+```
+
+<br>
+
+__Normalised by size of each enumeration district__
+
+```{r message = FALSE, warning = FALSE, fig.width = 10, fig.height = 6, cache = TRUE}
+combined %>%
+  filter(year == 1910) %>%
+  group_by(enumdist) %>%
+  mutate(enum_size = n()) %>%
+  group_by(race, enumdist, enum_size) %>%
+  summarise(count = n()) %>%
+  mutate(count = count / enum_size * 100) %>%
+  left_join(shp_1910, ., by = c("ED" = "enumdist")) %>%
+  filter(!is.na(race)) %>%
+  
+  ggplot() +
+  geom_sf(aes(fill = count),
+          colour = "black",
+          size = 0.25) +
+  facet_wrap(~race, nrow = 2) + 
+  scale_fill_viridis_c() + 
+  labs(fill = "Count") +
+  theme(legend.position = "right",
+        axis.text = element_blank(),
+        strip.text.x = element_text(size = 7),
+        legend.key.height = unit(2,"line"),
+        legend.key.width = unit(1,"line"),
+        panel.grid = element_blank())
+```
+
+<br>
+
+__Grouped__
+
+```{r message = FALSE, warning = FALSE, fig.width = 10, fig.height = 6, cahe = TRUE}
+combined %>%
+  filter(year == 1910) %>%
+  group_by(race, enumdist) %>%
+  summarise(count = n()) %>%
+  mutate(count = case_when(
+    count <= 500 ~ 1,
+    count <= 1000 ~ 2,
+    count <= 1500 ~ 3,
+    count <= 2000 ~ 4,
+    count <= Inf ~ 5
+  ),
+  count = factor(count,
+                 levels = 1:5,
+                 labels = c("   0 -  500", " 501 - 1000",
+                            "1001 - 1500", "1501 - 2000",
+                            "2001 -  Inf"))) %>%
+  
+  left_join(shp_1910, ., by = c("ED" = "enumdist")) %>%
+  filter(!is.na(race)) %>%
+  
+  ggplot() +
+  geom_sf(aes(fill = count), 
+          colour = "black",
+          size = 0.25) +
+  facet_wrap(~race, nrow = 2) + 
+  scale_fill_viridis_d() + 
+  labs(fill = "Count") +
+  theme(legend.position = "right",
+        axis.text = element_blank(),
+        strip.text.x = element_text(size = 7),
+        legend.key.height = unit(2,"line"),
+        legend.key.width = unit(1,"line"),
+        panel.grid = element_blank())
+```
+
+<br>
+
+__Grouped and Normalised by size of each enumeration district__
+
+```{r message = FALSE, warning = FALSE, fig.width = 10, fig.height = 6, cache = TRUE}
+combined %>%
+  filter(year == 1910) %>%
+  group_by(enumdist) %>%
+  mutate(enum_size = n()) %>%
+  group_by(race, enumdist, enum_size) %>%
+  summarise(count = n()) %>%
+  mutate(count = count / enum_size * 100,
+         count = case_when(
+           count <= 20 ~ 1,
+           count <= 40 ~ 2,
+           count <= 60 ~ 3,
+           count <= 80 ~ 4,
+           count <= 100 ~ 5
+         ),
+         count = factor(count,
+                        levels = 1:5,
+                        labels = c(" 0 - 20", "21 - 40",
+                                   "41 - 60", "61 - 80",
+                                   "81 - 100"))) %>%
+  left_join(shp_1910, ., by = c("ED" = "enumdist")) %>%
+  filter(!is.na(race)) %>%
+  
+  ggplot() +
+  geom_sf(aes(fill = count),
+          colour = "black",
+          size = 0.25) +
+  facet_wrap(~race, nrow = 2) + 
+  scale_fill_viridis_d() + 
+  labs(fill = "Count") +
+  theme(legend.position = "right",
+        axis.text = element_blank(),
+        strip.text.x = element_text(size = 7),
+        legend.key.height = unit(2,"line"),
+        legend.key.width = unit(1,"line"),
+        panel.grid = element_blank())
+```
+<br>
+
+### 5. Analysis of Changing Trends {.tabset .tabset-fade}
+
+#### Graph of Top 10 Occupations
+
+```{r message = FALSE, warning = FALSE, fig.width = 10, fig.height = 6}
+top_10_occ_combined = c(top_n_occupations(10, 1850),
+                        top_n_occupations(10, 1880),
+                        top_n_occupations(10, 1910)) %>%
+  unique()
+top_10_occ_combined = 
+  data.frame(year = rep(c(1850, 1880, 1910), 
+                        each = length(top_10_occ_combined)),
+             occ1950_label = rep(top_10_occ_combined, 3),
+             stringsAsFactors = FALSE)
+
+top_10_occ_combined = top_10_occ_combined %>%
+  mutate(top = case_when(
+    year == 1850 & occ1950_label %in% top_n_occupations(10, 1850) ~ 1,
+    year == 1880 & occ1950_label %in% top_n_occupations(10, 1880) ~ 1,
+    year == 1910 & occ1950_label %in% top_n_occupations(10, 1910) ~ 1,
+    TRUE ~ 0
+  ))
+
+combined %>% 
+  mutate(year = as.numeric(as.character(year))) %>%
+  filter(occ1950_label %in% top_10_occ_combined$occ1950_label) %>%
+  group_by(year, occ1950_label) %>%
+  summarise(count = n()) %>%
+  
+  left_join(top_10_occ_combined, ., 
+            by = c("year", "occ1950_label")) %>%
+  
+  group_by(occ1950_label) %>%
+  mutate(difference = first(count) - last(count),
+         colour = ifelse(difference > 0,
+                         1,
+                         0)) %>%
+  
+  ggplot(aes(y = count, x = year)) +
+  geom_col(aes(fill = factor(colour),
+               col = factor(top)),
+           size = 1) +
+  facet_wrap(~reorder(occ1950_label, difference), 
+             scales = "free_y") +
+  
+  scale_x_continuous(breaks = c(1850, 1880, 1910)) +
+  scale_fill_manual(values = c("#56c1ab", "#ee4c58")) +
+  scale_color_manual(values = c("white", "black")) +
+  
+  labs(y = "Occupations", col = "Year", x = "Count",
+       title = "Graph of Occupation Counts in Top 10 Occupations from 1850, 1880 and 1910",
+       caption = "Note: Black borders were if the occupation was a top 10 occupation in that time\nperiod. Occupations areordered by the size of change from 1850 to 1910") +
+  theme(legend.position = "none")
+```
+
+<br>
+
+#### Graph of Top 10 Occupations, Normalised
+
+```{r message = FALSE, warning = FALSE, fig.width = 10, fig.height = 6}
+combined %>% 
+  mutate(year = as.numeric(as.character(year))) %>%
+  filter(occ1950_label %in% top_10_occ_combined$occ1950_label) %>%
+  group_by(year, occ1950_label) %>%
+  summarise(count = n()) %>%
+  
+  mutate(count = case_when(
+    year == 1850 ~ count / var_lf_1850 * 100,
+    year == 1880 ~ count / var_lf_1880 * 100,
+    year == 1910 ~ count / var_lf_1910 * 100
+  )) %>%
+  
+  left_join(top_10_occ_combined, ., 
+            by = c("year", "occ1950_label")) %>%
+  
+  group_by(occ1950_label) %>%
+  mutate(difference = first(count) - last(count),
+         colour = ifelse(difference > 0,
+                         1,
+                         0)) %>%
+  
+  ggplot(aes(y = count, x = year)) +
+  geom_col(aes(fill = factor(colour),
+               col = factor(top)),
+           size = 1) +
+  facet_wrap(~reorder(occ1950_label, difference), 
+             scales = "free_y") +
+  
+  scale_x_continuous(breaks = c(1850, 1880, 1910)) +
+  scale_fill_manual(values = c("#56c1ab", "#ee4c58")) +
+  scale_color_manual(values = c("white", "black")) +
+  
+  labs(y = "Occupations", col = "Year", x = "Count",
+       title = "Graph of Occupation Counts in Top 10 Occupations from 1850, 1880 and 1910",
+       caption = "Note: Black borders were if the occupation was a top 10 occupation in that time\nperiod. Occupations areordered by the size of change from 1850 to 1910") +
+  theme(legend.position = "none")
+```
+
+<br>
+
+#### Maps of Top Occupation {.tabset .tabset-fade}
+
+##### Operative and kindred workers (n.e.c.) 
+
+__Operative and kindred workers (n.e.c.)__
+
+```{r}
+tmp_map_1850 = combined_1850 %>%
+  filter(year == 1850,
+         occ1950_label == "Operative and kindred workers (n.e.c.)") %>%
+  group_by(ward) %>%
+  summarise(count = n()) %>%
+  left_join(shp_1850, ., by = c("Ward_Num" = "ward")) %>%
+  
+  ggplot() +
+  geom_sf(aes(fill = count),
+          colour = "black",
+          size = 0.25) +
+  scale_fill_viridis_c() + 
+  labs(fill = "Count") +
+  theme(legend.position = "right",
+        axis.text = element_blank(),
+        strip.text.x = element_text(size = 7),
+        legend.key.height = unit(2,"line"),
+        legend.key.width = unit(1,"line"),
+        panel.grid = element_blank())
+
+tmp_map_1880 = combined %>%
+  filter(year == 1880,
+         occ1950_label == "Operative and kindred workers (n.e.c.)") %>%
+  group_by(enumdist) %>%
+  summarise(count = n()) %>%
+  left_join(shp_1880, ., by = c("ED" = "enumdist")) %>%
+  
+  ggplot() +
+  geom_sf(aes(fill = count),
+          colour = "black",
+          size = 0.25) +
+  scale_fill_viridis_c() + 
+  labs(fill = "Count") +
+  theme(legend.position = "right",
+        axis.text = element_blank(),
+        strip.text.x = element_text(size = 7),
+        legend.key.height = unit(2,"line"),
+        legend.key.width = unit(1,"line"),
+        panel.grid = element_blank())
+
+tmp_map_1910 = combined %>%
+  filter(year == 1910,
+         occ1950_label == "Operative and kindred workers (n.e.c.)") %>%
+  group_by(enumdist) %>%
+  summarise(count = n()) %>%
+  left_join(shp_1910, ., by = c("ED" = "enumdist")) %>%
+  
+  ggplot() +
+  geom_sf(aes(fill = count),
+          colour = "black",
+          size = 0.25) +
+  scale_fill_viridis_c() + 
+  labs(fill = "Count") +
+  theme(legend.position = "right",
+        axis.text = element_blank(),
+        strip.text.x = element_text(size = 7),
+        legend.key.height = unit(2,"line"),
+        legend.key.width = unit(1,"line"),
+        panel.grid = element_blank())
+
+ggarrange(tmp_map_1850, tmp_map_1880, tmp_map_1910,
+          labels = c("1850", "1880", "1910"),
+          nrow = 1,
+          font.label = list(size = 12, face = "plain", family = "Quicksand"))
+```
+
+<br>
+
+__Operative and kindred workers (n.e.c.) Normalised__
+
+```{r}
+tmp_map_1850 = combined_1850 %>%
+  group_by(ward) %>%
+  mutate(ward_size = n()) %>%
+  filter(year == 1850,
+         occ1950_label == "Operative and kindred workers (n.e.c.)") %>%
+  group_by(ward, ward_size) %>%
+  summarise(count = n()) %>%
+  mutate(count = count / ward_size * 100,
+         count = case_when(
+           count <= 5 ~ 1,
+           count <= 10 ~ 2,
+           count <= 15 ~ 3,
+           count <= 20 ~ 4,
+           count <= 100 ~ 5
+         ),
+         count = factor(count,
+                        levels = 1:5,
+                        labels = c(" 0 -  5", " 6 - 10",
+                                   "11 - 15", "16 - 20",
+                                   "21 - 100"))) %>%
+  left_join(shp_1850, ., by = c("Ward_Num" = "ward")) %>%
+  
+  ggplot() +
+  geom_sf(aes(fill = count),
+          colour = "black",
+          size = 0.25) +
+  scale_fill_viridis_d(drop = FALSE) + 
+  labs(fill = "Count") +
+  theme(legend.position = "right",
+        axis.text = element_blank(),
+        strip.text.x = element_text(size = 7),
+        legend.key.height = unit(2,"line"),
+        legend.key.width = unit(1,"line"),
+        panel.grid = element_blank())
+
+tmp_map_1880 = combined %>%
+  filter(year == 1880) %>%
+  group_by(enumdist) %>%
+  mutate(enum_size = n()) %>%
+  filter(occ1950_label == "Operative and kindred workers (n.e.c.)") %>%
+  group_by(occ1950_label, enumdist, enum_size) %>%
+  summarise(count = n()) %>%
+  mutate(count = count / enum_size * 100,
+         count = case_when(
+           count <= 5 ~ 1,
+           count <= 10 ~ 2,
+           count <= 15 ~ 3,
+           count <= 25 ~ 4,
+           count <= 100 ~ 5
+         ),
+         count = factor(count,
+                        levels = 1:5,
+                        labels = c(" 0 -  5", " 6 - 10",
+                                   "11 - 15", "16 - 20",
+                                   "21 - 100"))) %>%
+  left_join(shp_1880, ., by = c("ED" = "enumdist")) %>%
+  
+  ggplot() +
+  geom_sf(aes(fill = count),
+          colour = "black",
+          size = 0.25) +
+  scale_fill_viridis_d(drop = FALSE) + 
+  labs(fill = "Count") +
+  theme(legend.position = "right",
+        axis.text = element_blank(),
+        strip.text.x = element_text(size = 7),
+        legend.key.height = unit(2,"line"),
+        legend.key.width = unit(1,"line"),
+        panel.grid = element_blank())
+
+tmp_map_1910 = combined %>%
+  filter(year == 1910) %>%
+  group_by(enumdist) %>%
+  mutate(enum_size = n()) %>%
+  filter(occ1950_label == "Operative and kindred workers (n.e.c.)") %>%
+  group_by(occ1950_label, enumdist, enum_size) %>%
+  summarise(count = n()) %>%
+  mutate(count = count / enum_size * 100,
+         count = case_when(
+           count <= 5 ~ 1,
+           count <= 10 ~ 2,
+           count <= 15 ~ 3,
+           count <= 20 ~ 4,
+           count <= 100 ~ 5
+         ),
+         count = factor(count,
+                        levels = 1:5,
+                        labels = c(" 0 -  5", " 6 - 10",
+                                   "11 - 15", "16 - 20",
+                                   "21 - 100"))) %>%
+  left_join(shp_1910, ., by = c("ED" = "enumdist")) %>%
+  
+  ggplot() +
+  geom_sf(aes(fill = count),
+          colour = "black",
+          size = 0.25) +
+  scale_fill_viridis_d(drop = FALSE) + 
+  labs(fill = "Count") +
+  theme(legend.position = "right",
+        axis.text = element_blank(),
+        strip.text.x = element_text(size = 7),
+        legend.key.height = unit(2,"line"),
+        legend.key.width = unit(1,"line"),
+        panel.grid = element_blank())
+
+ggarrange(tmp_map_1850, tmp_map_1880, tmp_map_1910,
+          labels = c("1850", "1880", "1910"),
+          nrow = 1,
+          font.label = list(size = 12, face = "plain", family = "Quicksand"))
+```
+
+<br>
+
+##### Managers, officials, and proprietors (n.e.c.) (n.e.c.) 
+
+__Managers, officials, and proprietors (n.e.c.)__
+
+```{r}
+tmp_map_1850 = combined_1850 %>%
+  filter(year == 1850,
+         occ1950_label == "Managers, officials, and proprietors (n.e.c.)") %>%
+  group_by(ward) %>%
+  summarise(count = n()) %>%
+  left_join(shp_1850, ., by = c("Ward_Num" = "ward")) %>%
+  
+  ggplot() +
+  geom_sf(aes(fill = count),
+          colour = "black",
+          size = 0.25) +
+  scale_fill_viridis_c() + 
+  labs(fill = "Count") +
+  theme(legend.position = "right",
+        axis.text = element_blank(),
+        strip.text.x = element_text(size = 7),
+        legend.key.height = unit(2,"line"),
+        legend.key.width = unit(1,"line"),
+        panel.grid = element_blank())
+
+tmp_map_1880 = combined %>%
+  filter(year == 1880,
+         occ1950_label == "Managers, officials, and proprietors (n.e.c.)") %>%
+  group_by(enumdist) %>%
+  summarise(count = n()) %>%
+  left_join(shp_1880, ., by = c("ED" = "enumdist")) %>%
+  
+  ggplot() +
+  geom_sf(aes(fill = count),
+          colour = "black",
+          size = 0.25) +
+  scale_fill_viridis_c() + 
+  labs(fill = "Count") +
+  theme(legend.position = "right",
+        axis.text = element_blank(),
+        strip.text.x = element_text(size = 7),
+        legend.key.height = unit(2,"line"),
+        legend.key.width = unit(1,"line"),
+        panel.grid = element_blank())
+
+tmp_map_1910 = combined %>%
+  filter(year == 1910,
+         occ1950_label == "Managers, officials, and proprietors (n.e.c.)") %>%
+  group_by(enumdist) %>%
+  summarise(count = n()) %>%
+  left_join(shp_1910, ., by = c("ED" = "enumdist")) %>%
+  
+  ggplot() +
+  geom_sf(aes(fill = count),
+          colour = "black",
+          size = 0.25) +
+  scale_fill_viridis_c() + 
+  labs(fill = "Count") +
+  theme(legend.position = "right",
+        axis.text = element_blank(),
+        strip.text.x = element_text(size = 7),
+        legend.key.height = unit(2,"line"),
+        legend.key.width = unit(1,"line"),
+        panel.grid = element_blank())
+
+ggarrange(tmp_map_1850, tmp_map_1880, tmp_map_1910,
+          labels = c("1850", "1880", "1910"),
+          nrow = 1,
+          font.label = list(size = 12, face = "plain", family = "Quicksand"))
+```
+
+<br>
+
+__Managers, officials, and proprietors (n.e.c.) Normalised__
+
+```{r}
+tmp_map_1850 = combined_1850 %>%
+  group_by(ward) %>%
+  mutate(ward_size = n()) %>%
+  filter(year == 1850,
+         occ1950_label == "Managers, officials, and proprietors (n.e.c.)") %>%
+  group_by(ward, ward_size) %>%
+  summarise(count = n()) %>%
+  mutate(count = count / ward_size * 100,
+         count = case_when(
+           count <= 5 ~ 1,
+           count <= 10 ~ 2,
+           count <= 15 ~ 3,
+           count <= 20 ~ 4,
+           count <= 100 ~ 5
+         ),
+         count = factor(count,
+                        levels = 1:5,
+                        labels = c(" 0 -  5", " 6 - 10",
+                                   "11 - 15", "16 - 20",
+                                   "21 - 100"))) %>%
+  left_join(shp_1850, ., by = c("Ward_Num" = "ward")) %>%
+  
+  ggplot() +
+  geom_sf(aes(fill = count),
+          colour = "black",
+          size = 0.25) +
+  scale_fill_viridis_d(drop = FALSE) + 
+  labs(fill = "Count") +
+  theme(legend.position = "right",
+        axis.text = element_blank(),
+        strip.text.x = element_text(size = 7),
+        legend.key.height = unit(2,"line"),
+        legend.key.width = unit(1,"line"),
+        panel.grid = element_blank())
+
+tmp_map_1880 = combined %>%
+  filter(year == 1880) %>%
+  group_by(enumdist) %>%
+  mutate(enum_size = n()) %>%
+  filter(occ1950_label == "Managers, officials, and proprietors (n.e.c.)") %>%
+  group_by(occ1950_label, enumdist, enum_size) %>%
+  summarise(count = n()) %>%
+  mutate(count = count / enum_size * 100,
+         count = case_when(
+           count <= 5 ~ 1,
+           count <= 10 ~ 2,
+           count <= 15 ~ 3,
+           count <= 25 ~ 4,
+           count <= 100 ~ 5
+         ),
+         count = factor(count,
+                        levels = 1:5,
+                        labels = c(" 0 -  5", " 6 - 10",
+                                   "11 - 15", "16 - 20",
+                                   "21 - 100"))) %>%
+  left_join(shp_1880, ., by = c("ED" = "enumdist")) %>%
+  
+  ggplot() +
+  geom_sf(aes(fill = count),
+          colour = "black",
+          size = 0.25) +
+  scale_fill_viridis_d(drop = FALSE) + 
+  labs(fill = "Count") +
+  theme(legend.position = "right",
+        axis.text = element_blank(),
+        strip.text.x = element_text(size = 7),
+        legend.key.height = unit(2,"line"),
+        legend.key.width = unit(1,"line"),
+        panel.grid = element_blank())
+
+tmp_map_1910 = combined %>%
+  filter(year == 1910) %>%
+  group_by(enumdist) %>%
+  mutate(enum_size = n()) %>%
+  filter(occ1950_label == "Managers, officials, and proprietors (n.e.c.)") %>%
+  group_by(occ1950_label, enumdist, enum_size) %>%
+  summarise(count = n()) %>%
+  mutate(count = count / enum_size * 100,
+         count = case_when(
+           count <= 5 ~ 1,
+           count <= 10 ~ 2,
+           count <= 15 ~ 3,
+           count <= 20 ~ 4,
+           count <= 100 ~ 5
+         ),
+         count = factor(count,
+                        levels = 1:5,
+                        labels = c(" 0 -  5", " 6 - 10",
+                                   "11 - 15", "16 - 20",
+                                   "21 - 100"))) %>%
+  left_join(shp_1910, ., by = c("ED" = "enumdist")) %>%
+  
+  ggplot() +
+  geom_sf(aes(fill = count),
+          colour = "black",
+          size = 0.25) +
+  scale_fill_viridis_d(drop = FALSE) + 
+  labs(fill = "Count") +
+  theme(legend.position = "right",
+        axis.text = element_blank(),
+        strip.text.x = element_text(size = 7),
+        legend.key.height = unit(2,"line"),
+        legend.key.width = unit(1,"line"),
+        panel.grid = element_blank())
+
+ggarrange(tmp_map_1850, tmp_map_1880, tmp_map_1910,
+          labels = c("1850", "1880", "1910"),
+          nrow = 1,
+          font.label = list(size = 12, face = "plain", family = "Quicksand"))
+```
+
+<br>
+
+
+
+
