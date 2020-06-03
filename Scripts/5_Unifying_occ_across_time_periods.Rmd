@@ -430,7 +430,7 @@ Inspecting the top 200 occupations, it can be seen that the count of the top 200
 
 ```{r}
 combined_1850 %>%
-  rename(occ_)
+  rename(occ_label = label.x, occ1950_label = label.y) %>% 
   group_by(occ_label, occ1950_label, occstr) %>%
   summarise(count = n()) %>%
   left_join(combined_1850 %>% 

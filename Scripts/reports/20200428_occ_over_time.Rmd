@@ -503,13 +503,25 @@ join_1910 <-  combined_1910 %>%
 ```
 
 ```{r message = FALSE, warning = FALSE}
+##create occ to join 1880 code by 1880 string
+
+occ_join <- combined_1880 %>% 
+     filter(labforce == "Yes, in the labor force") %>% 
+     select(label, occstr) %>% 
+     rename(occ = label) %>% 
+     group_by(occstr) %>% 
+     mutate(occ_merge = paste0(unique(occ), collapse = "; "), occ_count = n_distinct(occ)) %>% 
+     group_by(occstr, occ_merge, occ_count) %>% 
+     summarise(count = n())
+```
+
+```{r message = FALSE, warning = FALSE}
 #Loading joins on OCCSTR for recoding OCC
 #matched
 #1880 first (eventually merge all of the joined tables)
 #shows the occ1950 categories that the strings are coded into
 #many multiple matches, pointing to the signifiance of intersecting these joins with other fields (industry)
-matched_1910_occ1880 <- readr::read_csv("../../Data/matching_1910/Census1910_matched-occ-codes-from-1880.csv") %>% 
-    left_join(join_1910, by = c("occstr" = "occstr"))
+matched_1910_occ1880 <- readr::read_csv("../../Data/matching_1910/Census1910_matched-occ-codes-from-1880.csv")
 
 #missing
 #1880 first (eventually merge all of the joined tables)
@@ -529,9 +541,23 @@ Based on OCCSTR join
 Next steps would include running this again after initial OCCSTR improvements and clarifying schema for conflicting / multiple code-string matched (would industry help?)
 ```{r message = FALSE, warning = FALSE}
 matched_1910_occ1880 %>% 
-    select(occ1950 = label, count, occstr, N) %>% 
+    select(occstr, N) %>% 
+    filter(occstr != "Missing") %>% 
     datatable(options = list(pageLength = 1000, scrollY = "400px"))
 ```
+
+#### MATCHING with new OCC (1880)
+
+Based on OCCSTR join
+
+```{r message = FALSE, warning = FALSE}
+matched_1910_occ1880 %>% 
+    select(occstr) %>% 
+    filter(occstr != "Missing") %>%
+    left_join(occ_join, by = c("occstr" = "occstr")) %>% 
+    datatable(options = list(pageLength = 1000, scrollY = "400px"))
+```
+
 
 
 <!-- #### MISSING (w/ Industry) -->
