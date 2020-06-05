@@ -131,6 +131,7 @@ OCC_1950 = readr::read_csv("../Data/OCC1950.csv")
 # Combining Data
 combined_1910 = rbind(mn_1910, bk_1910) %>%
   left_join(OCC_1950, by = c("occ1950" = "code")) %>%
+    rename(occ1950_label = label) %>% 
   select(age, sex, labor_force, race, occ1950, occstr, occ1950_label) %>%
   mutate(sex = factor(sex,
                       levels = c(1,2),
@@ -429,13 +430,14 @@ Inspecting the top 200 occupations, it can be seen that the count of the top 200
 
 ```{r}
 combined_1850 %>%
+  rename(occ_label = label.x, occ1950_label = label.y) %>% 
   group_by(occ_label, occ1950_label, occstr) %>%
   summarise(count = n()) %>%
   left_join(combined_1850 %>% 
               mutate(occstr = occ_modifier(occstr)) %>%
-              group_by(occ_label, occ1950_label, occstr) %>%
+              group_by(occ, occ1950, occstr) %>%
               summarise(count_modified = n()),
-            by = c("occ_label", "occ1950_label", "occstr")
+            by = c("occ", "occ1950", "occstr")
             ) %>%
   mutate(improvement = paste0(round((count_modified - count) / 
                                       count * 100, digits = 1), 

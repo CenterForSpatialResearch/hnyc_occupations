@@ -1,0 +1,575 @@
+---
+title: 'Standardizing Occupations Over Time'
+author: "Dan Miller + Clinton Wong"
+date: "4/28/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+```{r message = FALSE, warning = FALSE}
+library(dplyr)
+library(ggplot2)
+library(treemap)
+library(extrafont)
+library(stringr)
+loadfonts()
+library(knitr)
+library(kableExtra)
+library(tidyr)
+library(DT)
+#### Loading 1850
+# Loading
+mn_1850 = readr::read_csv("../../Data/census_1850_occ_mn.csv") %>% mutate(city = "Manhattan")
+bk_1850 = readr::read_csv("../../Data/census_1850_occ_bk.csv") %>% mutate(city = "Brooklyn")
+OCC_1880 = readr::read_csv("../../Data/OCC1880.csv")
+
+# Combining Data
+combined_1850 = rbind(mn_1850, bk_1850) %>% 
+  select(age, sex, marst, race, labforce,
+         occ, city, everything()) %>%
+  left_join(OCC_1880, by = c("occ" = "code")) %>%
+  mutate(race = factor(race,
+                       levels = c(100,120,200,210,300),
+                       labels = c("White", "Black (white)",
+                                  "Black / African American",
+                                  "Mulatto", "American Indian")),
+         labforce = factor(labforce,
+                           levels = c(0,1,2),
+                           labels = c("N/A",
+                                      "No, not in the labor force",
+                                      "Yes, in the labor force")),
+         sex = factor(sex,
+                      levels = c(1,2),
+                      labels = c("Male", "Female")),
+         marst = factor(marst,
+                        levels = c(1:6),
+                        labels = c("Married, spouse present",
+                                   "Married, spouse absent",
+                                   "Separated",
+                                   "Divorced",
+                                   "Widowed",
+                                   "Never married/single")))
+
+# Theme setting for visualisations
+theme_set(theme_minimal() + 
+            theme(panel.grid.minor = element_blank(),
+                  text = element_text(family = "Arial",
+                                      colour = "black")))
+col_sex = c("#e21737", "#0b648f")
+col_miss = c("#86b817", "#e53238")
+
+# Saving Memory
+rm(bk_1850)
+rm(mn_1850)
+```
+
+```{r message = FALSE, warning = FALSE}
+#### Loading 1880
+# Loading
+mn_1880 = readr::read_csv("../../Data/census_1880_occ_mn.csv") %>% mutate(city = "Manhattan")
+bk_1880 = readr::read_csv("../../Data/census_1880_occ_bk.csv") %>% mutate(city = "Brooklyn")
+OCC_1880 = readr::read_csv("../../Data/OCC1880.csv")
+
+# Combining Data
+combined_1880 = rbind(mn_1880, bk_1880) %>% 
+  select(age, sex, race, labforce,
+         occ, city, everything()) %>%
+  left_join(OCC_1880, by = c("occ" = "code")) %>%
+  mutate(age = ifelse(age == "Less than 1 year old",
+                      0,
+                      age),
+         age = as.numeric(age))
+
+rm(bk_1880)
+rm(mn_1880)
+```
+
+```{r message = FALSE, warning = FALSE}
+#### Loading 1910
+# Loading
+mn_1910 = readr::read_csv("../../Data/census_1910_occ_mn.csv") %>% mutate(city = "Manhattan")
+bk_1910 = readr::read_csv("../../Data/census_1910_occ_bk.csv") %>% mutate(city = "Brooklyn")
+OCC_1950 = readr::read_csv("../../Data/OCC1950.csv")
+OCC_1920 = readr::read_csv("../../Data/OCC1920.csv")
+IND_1950 = readr::read_csv("../../Data/IND1950.csv")
+
+# Combining Data
+combined_1910 = rbind(mn_1910, bk_1910) %>%
+  left_join(OCC_1950, by = c("occ1950" = "code")) %>%
+  mutate(sex = factor(sex,
+                      levels = c(1,2),
+                      labels = c("Male", "Female")),
+         labor_force = factor(labor_force,
+                              levels = c(0,1,2),
+                              labels = c("N/A", 
+                                         "No, not in the labor force",
+                                         "Yes, in the labor force")))
+
+rm(mn_1910)
+rm(bk_1910)
+```
+## Overview Tables
+
+#### Exploring the relationship between coded variables: `occ`, `occ1950` and occupational strings: `occstr` over time.
+
+| Year | Variable | Count | Remarks | Information in metadata | 
+| ----- | ----- | ----- | ----- | ----- |
+| 1850 | occ | 262 | Code | Occupation |
+| 1850 | occ1950 | 192 | Code | Occupation, 1950 basis |
+| 1850 | occstr | 6641 | Actual occupation, not code | Occupation, alphabetic string |
+| 1880 | occ | 274 | Code | Occupation |
+| 1880 | occ1950 | 239 | Actual occupation, not code | Occupation, 1950 basis |
+| 1880 | occstr | 79860 | Actual occupation, not code | Occupation, alphabetic string | 
+| 1880 | occhisco | 628 | Actual occupation, not code | Occupation, HISCO classification |
+| 1910 | occ1950 | 220 | Code | Occupation, 1950 basis |
+| 1910 | occstr | 68725 | Actual occupation, not code | Occupation, alphabetic string |
+
+### 1. Unique Strings by Primary Occupational Codes {.tabset .tabset-fade}
+
+#### README
+
+```{r message = FALSE, warning = FALSE}
+#Generating tables of unique OCCSTR per OCC/OCC1950 for each census year
+str_count_1880 <- combined_1880 %>% 
+    group_by(label) %>% 
+    count(occstr) %>% 
+    left_join(OCC_1880) %>% 
+    rename(occ = label)
+
+str_count_1850 <- combined_1850 %>% 
+    group_by(label) %>% 
+    count(occstr) %>% 
+    left_join(OCC_1880) %>% 
+    rename(occ = label)
+
+str_count_1910 <- combined_1910 %>% 
+    group_by(label) %>% 
+    count(occstr) %>% 
+    left_join(OCC_1950) %>% 
+    rename(occ1950 = label)
+```
+
+#### 1850
+```{r message = FALSE, warning = FALSE}
+str_count_1850 %>% 
+    datatable(options = list(pageLength = 1000, scrollY = "400px"))
+```
+
+#### 1880
+```{r message = FALSE, warning = FALSE}
+str_count_1880 %>% 
+    datatable(options = list(pageLength = 1000, scrollY = "400px"))
+```
+
+#### 1910
+```{r message = FALSE, warning = FALSE}
+
+str_count_1910 %>% 
+    datatable(options = list(pageLength = 1000, scrollY = "400px"))
+
+```
+
+### 2. Comparing OCC and OCC1950 Over Time {.tabset .tabset-fade}
+
+#### README
+
+#### 1850
+```{r}
+combined_1850 %>% 
+  filter(labforce == "Yes, in the labor force") %>% 
+  select(occ1950, label, occstr) %>%
+  left_join(OCC_1950, by = c("occ1950" = "code")) %>% 
+  select(-occ1950) %>% 
+  rename(occ = label.x, occ1950 = label.y) %>% 
+  group_by(occ1950, occ) %>%
+  summarise(count = n()) %>%
+  group_by(occ1950) %>%
+  mutate(occ_count = n()) %>%
+  filter(occ_count > 1) %>%
+  datatable(options = list(pageLength = 1000, scrollY = "400px"))
+```
+
+#### 1880
+```{r}
+combined_1880 %>% 
+  filter(labforce == "Yes, in the labor force") %>% 
+  select(occ1950, label, occstr) %>%
+  rename(occ = label) %>% 
+  group_by(occ1950, occ) %>%
+  summarise(count = n()) %>%
+  group_by(occ1950) %>%
+  mutate(occ_count = n()) %>%
+  filter(occ_count > 1) %>%
+  datatable(options = list(pageLength = 1000, scrollY = "400px"))
+```
+
+#### 1910
+
+This comparison isn't possible with 1910 census data, lacking `OCC` though we may eventually be able to compare `OCC1920` with the `OCC1950` coding scheme. 
+
+
+### 3. Combinations of OCC and OCC1950 with related OCCSTR {.tabset .tabset-fade}
+
+#### README
+
+#### 1850
+```{r}
+combined_1850 %>% 
+    filter(labforce == "Yes, in the labor force") %>% 
+    select(occ1950, label, occstr) %>% 
+    left_join(OCC_1950, by = c("occ1950" = "code")) %>% 
+    select(-occ1950) %>% 
+    rename(occ = label.x, occ1950 = label.y) %>% 
+    group_by(occ1950, occ) %>%
+    mutate(occstr_merge = paste0(unique(occstr), collapse = ", ")) %>% 
+    group_by(occ1950, occ, occstr_merge) %>% 
+    summarise(count = n()) %>%
+    group_by(occ1950) %>%
+    mutate(occ_count = n()) %>%
+    filter(occ_count > 1) %>% 
+    datatable(options = list(pageLength = 1000, scrollY = "400px"))
+```
+
+#### 1880
+```{r message = FALSE, warning = FALSE}
+combined_1880 %>% 
+    filter(labforce == "Yes, in the labor force") %>% 
+    select(occ1950, label, occstr) %>% 
+    rename(occ = label) %>% 
+    group_by(occ1950, occ) %>%
+    mutate(occstr_merge = paste0(unique(occstr), collapse = ", ")) %>% 
+    group_by(occ1950, occ, occstr_merge) %>% 
+    summarise(count = n()) %>%
+    group_by(occ1950) %>%
+    mutate(occ_count = n()) %>%
+    filter(occ_count > 1) %>% 
+    datatable(options = list(pageLength = 1000, scrollY = "400px"))
+```
+
+#### 1910
+```{r message = FALSE, warning = FALSE}
+combined_1910 %>% 
+    filter(labor_force == "Yes, in the labor force") %>% 
+    group_by(occ1950) %>%
+    mutate(occstr_merge = paste0(unique(occstr), collapse = ", ")) %>% 
+    count(occstr_merge) %>% 
+    left_join(OCC_1950, by = c("occ1950" = "code")) %>% 
+    ungroup() %>% 
+    select(-occ1950) %>% 
+    rename(occ1950 = label) %>% 
+    select(occ1950, occstr_merge, n) %>% 
+    datatable(options = list(pageLength = 1000, scrollY = "400px"))
+```
+
+
+### 4. Unique OCCSTR with related combinations of OCC and OCC1950 {.tabset .tabset-fade}
+
+#### README
+
+#### 1850
+```{r message = FALSE, warning = FALSE}
+combined_1850 %>% 
+     filter(labforce == "Yes, in the labor force") %>% 
+     select(occ1950, label, occstr) %>% 
+     left_join(OCC_1950, by = c("occ1950" = "code")) %>% 
+     select(-occ1950) %>% 
+     rename(occ = label.x, occ1950 = label.y) %>% 
+     group_by(occstr) %>% 
+     mutate(occ_merge = paste0(unique(occ), collapse = "; ")) %>% 
+     mutate(occ1950_merge = paste0(unique(occ1950), collapse = "; ")) %>%
+     mutate(n_occ = n_distinct(occ)) %>% 
+     mutate(n_occ1950 = n_distinct(occ1950)) %>% 
+     group_by(occ_merge, occ1950_merge, occstr, n_occ1950, n_occ) %>% 
+     summarise(count = n()) %>% 
+     datatable(options = list(pageLength = 1000, scrollY = "400px"))
+```
+
+#### 1880
+```{r message = FALSE, warning = FALSE}
+combined_1880 %>% 
+     filter(labforce == "Yes, in the labor force") %>% 
+     select(occ1950, label, occstr) %>% 
+     rename(occ = label) %>% 
+     group_by(occstr) %>% 
+     mutate(occ_merge = paste0(unique(occ), collapse = "; ")) %>% 
+     mutate(occ1950_merge = paste0(unique(occ1950), collapse = "; ")) %>%
+     mutate(n_occ = n_distinct(occ)) %>% 
+     mutate(n_occ1950 = n_distinct(occ1950)) %>% 
+     group_by(occ_merge, occ1950_merge, occstr, n_occ1950, n_occ) %>% 
+     summarise(count = n()) %>% 
+     datatable(options = list(pageLength = 1000, scrollY = "400px"))
+```
+
+#### 1910
+```{r message = FALSE, warning = FALSE}
+combined_1910 %>% 
+    filter(labor_force == "Yes, in the labor force") %>%
+    select(label, occstr) %>% 
+    rename(occ1950 = label) %>% 
+    group_by(occstr) %>% 
+    mutate(occ1950_merge = paste0(unique(occ1950), collapse = "; ")) %>%
+    mutate(n_occ1950 = n_distinct(occ1950)) %>% 
+    group_by(occ1950_merge, occstr, n_occ1950) %>% 
+    summarise(count = n()) %>% 
+    datatable(options = list(pageLength = 1000, scrollY = "400px"))
+```
+
+## Industry Codes + Merged Tables
+
+### 1. OCC, OCC1950, Industry with related OCCSTR  {.tabset .tabset-fade}
+
+#### README
+
+#### 1850
+```{r message = FALSE, warning = FALSE}
+combined_1850 %>% 
+    filter(labforce == "Yes, in the labor force") %>% 
+    select(occ1950, label, occstr, ind1950) %>% 
+    left_join(OCC_1950, by = c("occ1950" = "code")) %>% 
+    select(-occ1950) %>%
+    left_join(IND_1950, by = c("ind1950" = "Code")) %>% 
+    select(-ind1950) %>% 
+    rename(occ = label.x, occ1950 = label.y, ind1950 = Label) %>% 
+    group_by(occ1950, occ, ind1950) %>%
+    mutate(occstr_merge = paste0(unique(occstr), collapse = ", "), occstr_count = n_distinct(occstr)) %>% 
+    group_by(occ1950, occ, ind1950, occstr_merge, occstr_count) %>% 
+    summarise(n = n()) %>%
+    group_by(occ1950, occ) %>%
+    mutate(ind_count = n()) %>%
+    group_by(occ1950) %>% 
+    mutate(occ_count = n()) %>% 
+    select(occ1950, occ, ind1950, occstr_merge, occstr_count, occ_count, ind_count, n) %>%     
+    datatable(options = list(pageLength = 1000, scrollY = "400px"))
+```
+
+
+#### 1880
+```{r message = FALSE, warning = FALSE}
+combined_1880 %>% 
+    filter(labforce == "Yes, in the labor force") %>% 
+    select(occ1950, label, ind1950, occstr) %>% 
+    rename(occ = label) %>% 
+    group_by(occ1950, occ, ind1950) %>%
+    mutate(occstr_merge = paste0(unique(occstr), collapse = ", "), occstr_count = n_distinct(occstr)) %>% 
+    group_by(occ1950, occ,ind1950, occstr_merge, occstr_count) %>% 
+    summarise(n = n()) %>%
+    group_by(occ1950, occ) %>%
+    mutate(ind_count = n()) %>% 
+    group_by(occ1950) %>% 
+    mutate(occ_count = n()) %>% 
+    select(occ1950, occ, ind1950, occstr_merge, occstr_count, occ_count, ind_count, n) %>% 
+    datatable(options = list(pageLength = 1000, scrollY = "400px"))
+```
+
+
+#### 1910
+```{r message = FALSE, warning = FALSE}
+
+combined_1910 %>% 
+    filter(labor_force == "Yes, in the labor force") %>% 
+    group_by(occ1950, ind_1950) %>%
+    mutate(occstr_merge = paste0(unique(occstr), collapse = ", ")) %>% 
+    count(occstr_merge) %>% 
+    left_join(OCC_1950, by = c("occ1950" = "code")) %>% 
+    left_join(IND_1950, by = c("ind_1950" = "Code")) %>% 
+    ungroup() %>% 
+    select(-occ1950, -ind_1950) %>% 
+    rename(occ1950 = label, ind1950 = Label) %>% 
+    select(occ1950, ind1950, occstr_merge, n) %>% 
+    datatable(options = list(pageLength = 1000, scrollY = "400px"))
+```
+
+### 2. Unique OCCSTR with related combinations of OCC and OCC1950 {.tabset .tabset-fade}
+
+#### README
+
+#### 1850
+```{r message = FALSE, warning = FALSE}
+combined_1850 %>% 
+    filter(labforce == "Yes, in the labor force") %>% 
+    select(occ1950, label, occstr, ind1950) %>% 
+    left_join(OCC_1950, by = c("occ1950" = "code")) %>% 
+    select(-occ1950) %>%
+    left_join(IND_1950, by = c("ind1950" = "Code")) %>% 
+    select(-ind1950) %>% 
+    rename(occ = label.x, occ1950 = label.y, ind1950 = Label) %>% 
+     group_by(occstr) %>% 
+     mutate(occ_merge = paste0(unique(occ), collapse = "; "), occ_count = n_distinct(occ)) %>% 
+     mutate(occ1950_merge = paste0(unique(occ1950), collapse = "; "), occ1950_count = n_distinct(occ1950)) %>%
+    mutate(ind_merge = paste0(unique(ind1950), collapse = "; "), ind_count = n_distinct(ind1950)) %>% 
+     group_by(occstr, occ_merge, occ_count, occ1950_merge, occ1950_count, ind_merge, ind_count) %>% 
+     summarise(n = n()) %>% 
+     datatable(options = list(pageLength = 1000, scrollY = "400px"))
+```
+
+#### 1880
+```{r message = FALSE, warning = FALSE}
+combined_1880 %>% 
+     filter(labforce == "Yes, in the labor force") %>% 
+     select(occ1950, label, ind1950, occstr) %>% 
+     rename(occ = label) %>% 
+     group_by(occstr) %>% 
+     mutate(occ_merge = paste0(unique(occ), collapse = "; "), occ_count = n_distinct(occ)) %>% 
+     mutate(occ1950_merge = paste0(unique(occ1950), collapse = "; "), occ1950_count = n_distinct(occ1950)) %>%
+    mutate(ind_merge = paste0(unique(ind1950), collapse = "; "), ind_count = n_distinct(ind1950)) %>% 
+     group_by(occstr, occ_merge, occ_count, occ1950_merge, occ1950_count, ind_merge, ind_count) %>% 
+     summarise(count = n()) %>% 
+     datatable(options = list(pageLength = 1000, scrollY = "400px"))
+```
+
+#### 1910
+```{r message = FALSE, warning = FALSE}
+combined_1910 %>% 
+    filter(labor_force == "Yes, in the labor force") %>%
+    select(label, ind_1950, occstr) %>% 
+    left_join(IND_1950, by = c("ind_1950" = "Code")) %>%
+    select(-ind_1950) %>% 
+    rename(occ1950 = label, ind1950 = Label) %>% 
+    group_by(occstr) %>% 
+    mutate(occ1950_merge = paste0(unique(occ1950), collapse = "; "), occ1950_count = n_distinct(occ1950)) %>%
+    mutate(ind_merge = paste0(unique(ind1950), collapse = "; "), ind_count = n_distinct(ind1950)) %>% 
+    group_by(occstr, occ1950_merge, occ1950_count, ind_merge, ind_count) %>% 
+    summarise(count = n()) %>% 
+    datatable(options = list(pageLength = 1000, scrollY = "400px"))
+```
+
+
+<!-- ### 3. OCCSTR over time (merged) with related OCC, OCC1950, and INDUSTRY -->
+
+## Recoding Problems
+
+### 1. Exploring Blank or Not Yet Classified records {.tabset .tabset-fade}
+
+#### README
+
+#### 1850
+
+
+```{r message = FALSE, warning = FALSE}
+combined_1850 %>% 
+    filter(labforce == "Yes, in the labor force") %>% 
+    select(occ1950, label, occstr) %>% 
+    left_join(OCC_1950, by = c("occ1950" = "code")) %>% 
+    select(-occ1950) %>% 
+    rename(occ = label.x, occ1950 = label.y) %>% 
+    filter(occ == "Blank") %>% 
+    group_by(occ1950, occstr) %>% 
+    summarise(count = n()) %>% 
+    datatable(options = list(pageLength = 1000, scrollY = "400px"))
+```
+
+#### 1880
+```{r message = FALSE, warning = FALSE}
+combined_1880 %>% 
+    filter(labforce == "Yes, in the labor force") %>% 
+    select(occ1950, label, occstr) %>% 
+    rename(occ = label) %>% 
+    filter(occ == "Blank") %>% 
+    group_by(occ1950, occstr, occ) %>%
+    summarise(count = n()) %>% 
+    datatable(options = list(pageLength = 1000, scrollY = "400px"))
+```
+
+#### 1910
+```{r message = FALSE, warning = FALSE}
+combined_1910 %>% 
+    filter(labor_force == "Yes, in the labor force") %>% 
+    select(label, occstr) %>% 
+    rename(occ1950 = label) %>% 
+    filter(occ1950 == "Not yet classified") %>% 
+    group_by(occ1950, occstr) %>% 
+    summarise(count = n()) %>% 
+    datatable(options = list(pageLength = 1000, scrollY = "400px"))
+```
+
+#### 1910 (w/ Industry)
+
+### 2. Testing Extension of OCC via OCCSTR Crosswalk {.tabset .tabset-fade}
+
+#### README
+
+#### MISSING
+
+Based on OCCSTR join
+Next steps would include running this again after initial OCCSTR improvements and clarifying schema for conflicting / multiple code-string matched (would industry help?)
+```{r message = FALSE, warning = FALSE}
+join_1910 <-  combined_1910 %>% 
+    select(occ1950, occstr, label) %>% 
+    group_by(occ1950, occstr, label) %>% 
+    summarise(count = n())
+```
+
+```{r message = FALSE, warning = FALSE}
+##create occ to join 1880 code by 1880 string
+
+occ_join <- combined_1880 %>% 
+     filter(labforce == "Yes, in the labor force") %>% 
+     select(label, occstr) %>% 
+     rename(occ = label) %>% 
+     group_by(occstr) %>% 
+     mutate(occ_merge = paste0(unique(occ), collapse = "; "), occ_count = n_distinct(occ)) %>% 
+     group_by(occstr, occ_merge, occ_count) %>% 
+     summarise(count = n())
+```
+
+```{r message = FALSE, warning = FALSE}
+#Loading joins on OCCSTR for recoding OCC
+#matched
+#1880 first (eventually merge all of the joined tables)
+#shows the occ1950 categories that the strings are coded into
+#many multiple matches, pointing to the signifiance of intersecting these joins with other fields (industry)
+matched_1910_occ1880 <- readr::read_csv("../../Data/matching_1910/Census1910_matched-occ-codes-from-1880.csv")
+
+#missing
+#1880 first (eventually merge all of the joined tables)
+missing_1910_occ1880 <- readr::read_csv("../../Data/matching_1910/Census1910_missing-occ-codes-in-1880.csv") %>% 
+    left_join(join_1910, by = c("Occupation (string)" = "occstr"))
+```
+
+```{r message = FALSE, warning = FALSE}
+missing_1910_occ1880 %>% 
+    select(occ1950 = label,count, occstr = "Occupation (string)", N) %>% 
+    datatable(options = list(pageLength = 1000, scrollY = "400px"))
+```
+
+#### MATCHING
+
+Based on OCCSTR join
+Next steps would include running this again after initial OCCSTR improvements and clarifying schema for conflicting / multiple code-string matched (would industry help?)
+```{r message = FALSE, warning = FALSE}
+matched_1910_occ1880 %>% 
+    select(occstr, N) %>% 
+    filter(occstr != "Missing") %>% 
+    datatable(options = list(pageLength = 1000, scrollY = "400px"))
+```
+
+#### MATCHING with new OCC (1880)
+
+Based on OCCSTR join
+
+```{r message = FALSE, warning = FALSE}
+matched_1910_occ1880 %>% 
+    select(occstr) %>% 
+    filter(occstr != "Missing") %>%
+    left_join(occ_join, by = c("occstr" = "occstr")) %>% 
+    datatable(options = list(pageLength = 1000, scrollY = "400px"))
+```
+
+
+
+<!-- #### MISSING (w/ Industry) -->
+<!-- ```{r message = FALSE, warning = FALSE} -->
+
+<!-- ``` -->
+
+<!-- #### MATCHING (w/ Industry) -->
+<!-- ```{r message = FALSE, warning = FALSE} -->
+
+<!-- ``` -->
+
+
+
+
