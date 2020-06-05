@@ -7,11 +7,17 @@ editor_options:
   chunk_output_type: console
 ---
 
+```{r include = FALSE}
+knitr::opts_chunk$set(echo=FALSE)
+```
+
+
 <br>
 
 ```
 Objective: General Analysis
 ```
+
 
 <br>
 
@@ -50,50 +56,62 @@ options(scipen = 999)
 
 # Source occ_modifier
 source("0_OCC_Modifier.R")
+source("0_Categories_Generator.R")
+
+# Reference files
+OCC_1880 = readr::read_csv("../Data/OCC1880.csv")
+OCC_1950 = readr::read_csv("../Data/OCC1950.csv")
+IND_1950 = readr::read_csv("../Data/IND1950.csv")
 ```
 
 #### Loading 1850
 
-```{r}
+```{r eval = FALSE}
 # Loading
 mn_1850 = readr::read_csv("../Data/census_1850_occ_mn.csv") %>% mutate(city = "Manhattan")
 bk_1850 = readr::read_csv("../Data/census_1850_occ_bk.csv") %>% mutate(city = "Brooklyn")
-OCC_1880 = readr::read_csv("../Data/OCC1880.csv")
-OCC_1950 = readr::read_csv("../Data/OCC1950.csv")
+combined = rbind(mn_1850, bk_1850)
+
+# Saving Memory
+rm(bk_1850)
+rm(mn_1850)
 
 # Combining Data
-combined_1850 = rbind(mn_1850, bk_1850) %>% 
-  select(age, sex, race, labforce,
-         occ, city, occ1950, occstr, 
-         enumdist, ward, ind1950) %>%
+combined = combined %>% 
   left_join(OCC_1880, by = c("occ" = "code")) %>%
   left_join(OCC_1950, by = c("occ1950" = "code")) %>%
-  mutate(race = factor(race,
+  left_join(IND_1950, by = "ind1950") %>%
+  mutate(occ_cat_label = add_occ_cat_label(.),
+         occ1950_cat_label = add_occ1950_cat_label(.),
+         ind1950_cat_label = add_ind1950_cat_label(.),
+         race = factor(race,
                        levels = c(100,120,200,210,300),
                        labels = c("White", "White",
                                   "Black/African American/Negro",
                                   "Mulatto", 
                                   "American Indian/Alaska Native (AIAN)")),
+         sex = factor(sex,
+                      levels = c(1,2),
+                      labels = c("Male", "Female")),
+         year = 1850,
          labforce = factor(labforce,
                            levels = c(0,1,2),
                            labels = c("N/A",
                                       "No, not in the labor force",
-                                      "Yes, in the labor force")),
-         sex = factor(sex,
-                      levels = c(1,2),
-                      labels = c("Male", "Female")),
-         year = 1850) %>%
+                                      "Yes, in the labor force"))) %>%
+  
+  select(year, age, sex, race, city, 
+         enumdist, ward, labforce,
+         occstr,
+         occ, occ_label, occ_cat_label, 
+         occ1950, occ1950_label, occ1950_cat_label,
+         ind1950, ind1950_label, ind1950_cat_label) %>%
   
   # Data prepping for combining
+  # Do not run below for full unfiltered data set
   filter(labforce == "Yes, in the labor force") %>%
-  select(year, age, sex, race, city, enumdist, 
-         occstr, occ_label, occ1950_label, ward, ind1950) %>%
   mutate(race = as.character(race),
          sex = as.character(sex))
-
-# Saving Memory
-rm(bk_1850)
-rm(mn_1850)
 ```
 
 <br>
@@ -104,27 +122,39 @@ rm(mn_1850)
 # Loading
 mn_1880 = readr::read_csv("../Data/census_1880_occ_mn.csv") %>% mutate(city = "Manhattan")
 bk_1880 = readr::read_csv("../Data/census_1880_occ_bk.csv") %>% mutate(city = "Brooklyn")
+combined_1880 = rbind(mn_1880, bk_1880)
+
+# Saving Memory
+rm(bk_1880)
+rm(mn_1880)
 
 # Combining Data
-combined_1880 = rbind(mn_1880, bk_1880) %>% 
+combined_1880 = combined_1880 %>% 
   select(age, sex, race, labforce,
-         occ, city, occstr, occ1950, 
-         enumdist) %>%
+         occ, city, occstr, occ1950_label = occ1950, 
+         enumdist, ind1950_label = ind1950) %>%
   left_join(OCC_1880, by = c("occ" = "code")) %>%
-  mutate(age = ifelse(age == "Less than 1 year old",
+  mutate(occ_cat_label = add_occ_cat_label(.),
+         age = ifelse(age == "Less than 1 year old",
                       0,
                       age),
          age = as.numeric(age),
-         year = 1880) %>%
+         year = 1880,
+         ward = NA_integer_,
+         occ1950 = NA_integer_,
+         occ1950_cat_label = NA_character_,
+         ind1950 = NA_integer_,
+         ind1950_cat_label = NA_character_) %>%
+  
+  select(year, age, sex, race, city, 
+         enumdist, ward, labforce,
+         occstr,
+         occ, occ_label, occ_cat_label, 
+         occ1950, occ1950_label, occ1950_cat_label,
+         ind1950, ind1950_label, ind1950_cat_label) %>%
   
   # Data prepping for combining
-  filter(labforce == "Yes, in the labor force") %>%
-  select(year, age, sex, race, city, enumdist,
-         occstr, occ_label, occ1950_label = occ1950)
-
-rm(OCC_1880)
-rm(bk_1880)
-rm(mn_1880)
+  filter(labforce == "Yes, in the labor force")
 ```
 
 <br>
@@ -136,14 +166,26 @@ rm(mn_1880)
 mn_1910 = readr::read_csv("../Data/census_1910_occ_mn.csv") %>% mutate(city = "Manhattan")
 bk_1910 = readr::read_csv("../Data/census_1910_occ_bk.csv") %>% mutate(city = "Brooklyn")
 OCC_1950 = readr::read_csv("../Data/OCC1950.csv")
+combined_1910 = rbind(mn_1910, bk_1910)
+
+# Saving Memory
+rm(bk_1910)
+rm(mn_1910)
 
 # Combining Data
-combined_1910 = rbind(mn_1910, bk_1910) %>%
+combined_1910 = combined_1910 %>%
   left_join(OCC_1950, by = c("occ1950" = "code")) %>%
   select(age, sex, labor_force, race, 
          occ1950, occstr, occ1950_label, city,
-         enumdist) %>%
-  mutate(sex = factor(sex,
+         enumdist, ind1950 = ind_1950) %>%
+  left_join(IND_1950, by = "ind1950") %>%
+  mutate(occ = occ1950,
+         occ_label = occ1950_label,
+         ward = NA_integer_) %>%
+  mutate(occ1950_cat_label = add_occ1950_cat_label(.),
+         occ_cat_label = occ1950_cat_label,
+         ind1950_cat_label = add_ind1950_cat_label(.),
+         sex = factor(sex,
                       levels = c(1,2),
                       labels = c("Male", "Female")),
          labor_force = factor(labor_force,
@@ -163,18 +205,19 @@ combined_1910 = rbind(mn_1910, bk_1910) %>%
                                   "Asian, not specified")),
          year = 1910) %>%
   
+  select(year, age, sex, race, city, 
+         enumdist, ward, labforce = labor_force,
+         occstr,
+         occ, occ_label, occ_cat_label, 
+         occ1950, occ1950_label, occ1950_cat_label,
+         ind1950, ind1950_label, ind1950_cat_label) %>%
+  
   # Data prepping for combining
-  filter(labor_force == "Yes, in the labor force") %>%
-  select(year, age, sex, race, city, enumdist,
-         occstr, occ_label = occ1950_label) %>%
+  filter(labforce == "Yes, in the labor force") %>%
   mutate(occ1950_label = occ_label,
          sex = as.character(sex),
          race = as.character(race),
          enumdist = as.numeric(enumdist))
-
-rm(OCC_1950)
-rm(mn_1910)
-rm(bk_1910)
 ```
 
 <br>
@@ -183,15 +226,47 @@ rm(bk_1910)
 
 ```{r eval = FALSE}
 combined = 
-  bind_rows(combined_1850, 
+  bind_rows(combined, 
             combined_1880, 
             combined_1910) %>%
-  mutate(occstr = occ_modifier(occstr))
+  mutate(occstr_mod = occ_modifier(occstr)) %>%
+  
+  select(year, age, sex, race, city, 
+         enumdist, ward,
+         occstr, occstr_mod,
+         occ, occ_label, occ_cat_label, 
+         occ1950, occ1950_label, occ1950_cat_label,
+         ind1950, ind1950_label, ind1950_cat_label)
+```
 
-rm(combined_1850)
+```{r eval = FALSE}
+rm(combined)
 rm(combined_1880)
 rm(combined_1910)
 ```
+
+```{r eval = FALSE}
+sub = combined %>% filter(year == 1880)
+
+sub = sub %>% 
+  select(-occ1950, -ind1950) %>%
+  left_join(OCC_1950) %>% 
+  select(occ1950 = code, everything()) %>%
+  mutate(occ1950_cat_label = add_occ1950_cat_label(.)) %>%
+  left_join(IND_1950) %>%
+  mutate(ind1950_cat_label = add_ind1950_cat_label(.)) %>%
+  select(year, age, sex, race, city, 
+         enumdist, ward,
+         occstr, occstr_mod,
+         occ, occ_label, occ_cat_label, 
+         occ1950, occ1950_label, occ1950_cat_label,
+         ind1950, ind1950_label, ind1950_cat_label)
+
+combined = combined %>% 
+  filter(year == 1850 | year == 1910) %>%
+  rbind(sub)
+```
+
 
 ```{r eval = FALSE}
 readr::write_csv(combined, "combined.csv")
@@ -239,6 +314,87 @@ top_n_occupations = function(n, year_in = "all") {
         arrange(desc(count)) %>%
         head(n) %>%
         .$occ1950_label
+    )
+  }
+}
+
+top_n_occupation_cat = function(n, year_in = "all") {
+  
+  if (year_in == "all") {
+    
+    return(
+      combined %>%
+        filter(occ1950_cat_label != "Not yet classified") %>%
+        group_by(occ1950_cat_label) %>%
+        summarise(count = n()) %>%
+        arrange(desc(count)) %>%
+        head(n) %>%
+        .$occ1950_cat_label
+    ) 
+  } else if (year_in %in% c("1850", "1880", "1910")) {
+    
+    return (
+      combined %>%
+        filter(year == year_in & occ1950_cat_label != "Not yet classified") %>%
+        group_by(occ1950_cat_label) %>%
+        summarise(count = n()) %>%
+        arrange(desc(count)) %>%
+        head(n) %>%
+        .$occ1950_cat_label
+    )
+  }
+}
+
+top_n_industry = function(n, year_in = "all") {
+  
+  if (year_in == "all") {
+    
+    return(
+      combined %>%
+        filter(ind1950_label != "Not yet classified") %>%
+        group_by(ind1950_label) %>%
+        summarise(count = n()) %>%
+        arrange(desc(count)) %>%
+        head(n) %>%
+        .$ind1950_label
+    ) 
+  } else if (year_in %in% c("1850", "1880", "1910")) {
+    
+    return (
+      combined %>%
+        filter(year == year_in & ind1950_label != "Not yet classified") %>%
+        group_by(ind1950_label) %>%
+        summarise(count = n()) %>%
+        arrange(desc(count)) %>%
+        head(n) %>%
+        .$ind1950_label
+    )
+  }
+}
+
+top_n_industry_cat = function(n, year_in = "all") {
+  
+  if (year_in == "all") {
+    
+    return(
+      combined %>%
+        filter(ind1950_cat_label != "Not yet classified") %>%
+        group_by(ind1950_cat_label) %>%
+        summarise(count = n()) %>%
+        arrange(desc(count)) %>%
+        head(n) %>%
+        .$ind1950_cat_label
+    ) 
+  } else if (year_in %in% c("1850", "1880", "1910")) {
+    
+    return (
+      combined %>%
+        filter(year == year_in & ind1950_cat_label != "Not yet classified") %>%
+        group_by(ind1950_cat_label) %>%
+        summarise(count = n()) %>%
+        arrange(desc(count)) %>%
+        head(n) %>%
+        .$ind1950_cat_label
     )
   }
 }
@@ -493,11 +649,13 @@ combined %>%
 
 <br>
 
-### 3. Analysis of Occupation {.tabset .tabset-fade}
+### 3. Top 10s Analysis {.tabset .tabset-fade}
 
-#### Datatable of General Counts {.tabset .tabset-fade}
+#### Occupation {.tabset .tabset-fade}
 
-##### Overall 
+##### Datatable of General Counts {.tabset .tabset-fade}
+
+###### Overall 
 
 ```{r}
 combined %>%
@@ -509,9 +667,12 @@ combined %>%
   head(200) %>% # Datatable can only handle a limited amount of data
   datatable()
 ```
+
+* Across years, Operative and kindred workers (n.e.c.), Managers, officials, and proprietors (n.e.c.), Private household workers (n.e.c.) and Laborers (n.e.c.) appear to be the occupations which consistently are the most common
+
 <br>
 
-##### 1850 
+###### 1850 
 
 ```{r}
 combined %>%
@@ -526,7 +687,7 @@ combined %>%
 ```
 <br>
 
-##### 1880 
+###### 1880 
 
 ```{r}
 combined %>%
@@ -541,7 +702,7 @@ combined %>%
 ```
 <br>
 
-##### 1910 
+###### 1910 
 
 ```{r}
 combined %>%
@@ -556,9 +717,9 @@ combined %>%
 ```
 <br>
 
-#### Graph of General Counts {.tabset .tabset-fade}
+##### Graph of General Counts {.tabset .tabset-fade}
 
-##### General Trends
+###### General Trends
 
 ```{r message = FALSE, warning = FALSE, fig.width = 10, fig.height = 6}
 combined %>%
@@ -574,7 +735,7 @@ combined %>%
   geom_text(aes(label = count),
             family = "Quicksand",
             hjust = 0) +
-  facet_wrap(~year, scales = "free_y") +
+  facet_wrap(~year, scales = "free_x") +
   scale_x_reordered() +
   scale_y_continuous(expand = expand_scale(mult = c(0, 0.5))) +
   scale_fill_manual(values = col_3) +
@@ -586,7 +747,7 @@ combined %>%
 
 <br>
 
-##### Percent of Labor Force
+###### Percent of Labor Force
 
 ```{r message = FALSE, warning = FALSE, fig.width = 10, fig.height = 6}
 combined %>%
@@ -608,13 +769,395 @@ combined %>%
   geom_text(aes(label = paste0(count, "%")),
             family = "Quicksand",
             hjust = 0) +
-  facet_wrap(~year, scales = "free_y") +
+  facet_wrap(~year, scales = "free_x") +
   scale_x_reordered() +
   scale_y_continuous(expand = expand_scale(mult = c(0, 0.5))) +
   scale_fill_manual(values = col_3) +
   coord_flip() +
   labs(y = "Count", x = "Occupation",
        title = "Graph of Most Popular Occupations across Time Periods as Percentage of Labor Force") +
+  theme(legend.position = "none")
+```
+
+<br>
+
+#### Occupation Categories {.tabset .tabset-fade}
+
+##### Datatable of General Counts {.tabset .tabset-fade}
+
+###### Overall 
+
+```{r}
+combined %>%
+  group_by(occ1950_cat_label) %>%
+  summarise(count = n()) %>%
+  mutate(perc = round(count / var_lf * 100,
+                      digits = 2)) %>%
+  arrange(desc(count)) %>%
+  head(200) %>% # Datatable can only handle a limited amount of data
+  datatable()
+```
+
+* Across years, Operative and kindred workers (n.e.c.), Managers, officials, and proprietors (n.e.c.), Private household workers (n.e.c.) and Laborers (n.e.c.) appear to be the occupations which consistently are the most common
+
+<br>
+
+###### 1850 
+
+```{r}
+combined %>%
+  filter(year == 1850) %>%
+  group_by(occ1950_cat_label) %>%
+  summarise(count = n()) %>%
+  mutate(perc = round(count / var_lf_1850 * 100,
+                      digits = 2)) %>%
+  arrange(desc(count)) %>%
+  head(200) %>% # Datatable can only handle a limited amount of data
+  datatable()
+```
+<br>
+
+###### 1880 
+
+```{r}
+combined %>%
+  filter(year == 1880) %>%
+  group_by(occ1950_cat_label) %>%
+  summarise(count = n()) %>%
+  mutate(perc = round(count / var_lf_1880 * 100,
+                      digits = 2)) %>%
+  arrange(desc(count)) %>%
+  head(200) %>% # Datatable can only handle a limited amount of data
+  datatable()
+```
+<br>
+
+###### 1910 
+
+```{r}
+combined %>%
+  filter(year == 1910) %>%
+  group_by(occ1950_cat_label) %>%
+  summarise(count = n()) %>%
+  mutate(perc = round(count / var_lf_1910 * 100,
+                      digits = 2)) %>%
+  arrange(desc(count)) %>%
+  head(200) %>% # Datatable can only handle a limited amount of data
+  datatable()
+```
+<br>
+
+##### Graph of General Counts {.tabset .tabset-fade}
+
+###### General Trends
+
+```{r message = FALSE, warning = FALSE, fig.width = 10, fig.height = 6}
+combined %>%
+  group_by(year, occ1950_cat_label) %>%
+  summarise(count = n()) %>%
+  group_by(year) %>%
+  top_n(10, wt = count) %>%
+  
+  ggplot(aes(y = count,
+             x = reorder_within(occ1950_cat_label, count, year),
+             fill = year)) +
+  geom_col() +
+  geom_text(aes(label = count),
+            family = "Quicksand",
+            hjust = 0) +
+  facet_wrap(~year, scales = "free_x") +
+  scale_x_reordered() +
+  scale_y_continuous(expand = expand_scale(mult = c(0, 0.5))) +
+  scale_fill_manual(values = col_3) +
+  coord_flip() +
+  labs(y = "Count", x = "Occupation",
+       title = "Graph of Most Popular Occupation Categories across Time Periods") +
+  theme(legend.position = "none")
+```
+
+<br>
+
+###### Percent of Labor Force
+
+```{r message = FALSE, warning = FALSE, fig.width = 10, fig.height = 6}
+combined %>%
+  group_by(year, occ1950_cat_label) %>%
+  summarise(count = n()) %>%
+  group_by(year) %>%
+  top_n(10, wt = count) %>%
+  mutate(count = case_when(
+    year == 1850 ~ count / var_lf_1850,
+    year == 1880 ~ count / var_lf_1880,
+    year == 1910 ~ count / var_lf_1910),
+    count = round(count * 100,
+                  digits = 1)) %>%
+  
+  ggplot(aes(y = count,
+             x = reorder_within(occ1950_cat_label, count, year),
+             fill = year)) +
+  geom_col() +
+  geom_text(aes(label = paste0(count, "%")),
+            family = "Quicksand",
+            hjust = 0) +
+  facet_wrap(~year, scales = "free_x") +
+  scale_x_reordered() +
+  scale_y_continuous(expand = expand_scale(mult = c(0, 0.5))) +
+  scale_fill_manual(values = col_3) +
+  coord_flip() +
+  labs(y = "Count", x = "Occupation",
+       title = "Graph of Most Popular Occupation Categories across Time Periods as Percentage of Labor Force") +
+  theme(legend.position = "none")
+```
+
+<br>
+
+#### Industry {.tabset .tabset-fade}
+
+##### Datatable of General Counts {.tabset .tabset-fade}
+
+###### Overall
+
+```{r}
+combined %>%
+  group_by(ind1950_label) %>%
+  summarise(count = n()) %>%
+  mutate(perc = round(count / var_lf * 100,
+                      digits = 2)) %>%
+  arrange(desc(count)) %>%
+  head(200) %>% # Datatable can only handle a limited amount of data
+  datatable()
+```
+
+<br>
+
+###### 1850 
+
+```{r}
+combined %>%
+  filter(year == 1850) %>%
+  group_by(ind1950_label) %>%
+  summarise(count = n()) %>%
+  mutate(perc = round(count / var_lf * 100,
+                      digits = 2)) %>%
+  arrange(desc(count)) %>%
+  datatable()
+```
+
+<br>
+
+###### 1880 
+
+```{r}
+combined %>%
+  filter(year == 1880) %>%
+  group_by(ind1950_label) %>%
+  summarise(count = n()) %>%
+  mutate(perc = round(count / var_lf * 100,
+                      digits = 2)) %>%
+  arrange(desc(count)) %>%
+  datatable()
+```
+
+<br>
+
+###### 1910 
+
+```{r}
+combined %>%
+  filter(year == 1910) %>%
+  group_by(ind1950_label) %>%
+  summarise(count = n()) %>%
+  mutate(perc = round(count / var_lf * 100,
+                      digits = 2)) %>%
+  arrange(desc(count)) %>%
+  datatable()
+```
+
+<br>
+
+##### Graph of General Counts {.tabset .tabset-fade}
+
+###### General Trends
+
+```{r}
+combined %>%
+  group_by(year, ind1950_label) %>%
+  summarise(count = n()) %>%
+  group_by(year) %>%
+  top_n(10, wt = count) %>%
+  
+  ggplot(aes(y = count,
+             x = reorder_within(ind1950_label, count, year),
+             fill = year)) +
+  geom_col() +
+  geom_text(aes(label = count),
+            family = "Quicksand",
+            hjust = 0) +
+  facet_wrap(~year, scales = "free_x") +
+  scale_x_reordered() +
+  scale_y_continuous(expand = expand_scale(mult = c(0, 0.5))) +
+  scale_fill_manual(values = col_3) +
+  coord_flip() +
+  labs(y = "Count", x = "Industry",
+       title = "Graph of Most Popular Industries across Time Periods") +
+  theme(legend.position = "none")
+```
+
+###### Percent of Labor Force
+
+```{r message = FALSE, warning = FALSE, fig.width = 10, fig.height = 6}
+combined %>%
+  group_by(year, ind1950_label) %>%
+  summarise(count = n()) %>%
+  group_by(year) %>%
+  top_n(10, wt = count) %>%
+  mutate(count = case_when(
+    year == 1850 ~ count / var_lf_1850,
+    year == 1880 ~ count / var_lf_1880,
+    year == 1910 ~ count / var_lf_1910),
+    count = round(count * 100,
+                  digits = 1)) %>%
+  
+  ggplot(aes(y = count,
+             x = reorder_within(ind1950_label, count, year),
+             fill = year)) +
+  geom_col() +
+  geom_text(aes(label = paste0(count, "%")),
+            family = "Quicksand",
+            hjust = 0) +
+  facet_wrap(~year, scales = "free_x") +
+  scale_x_reordered() +
+  scale_y_continuous(expand = expand_scale(mult = c(0, 0.5))) +
+  scale_fill_manual(values = col_3) +
+  coord_flip() +
+  labs(y = "Count", x = "Industry",
+       title = "Graph of Most Popular Industries across Time Periods as Percentage of Labor Force") +
+  theme(legend.position = "none")
+```
+
+<br>
+
+#### Industry Categories {.tabset .tabset-fade}
+
+##### Datatable of General Counts {.tabset .tabset-fade}
+
+###### Overall
+
+```{r}
+combined %>%
+  group_by(ind1950_cat_label) %>%
+  summarise(count = n()) %>%
+  mutate(perc = round(count / var_lf * 100,
+                      digits = 2)) %>%
+  arrange(desc(count)) %>%
+  head(200) %>% # Datatable can only handle a limited amount of data
+  datatable()
+```
+
+<br>
+
+###### 1850 
+
+```{r}
+combined %>%
+  filter(year == 1850) %>%
+  group_by(ind1950_cat_label) %>%
+  summarise(count = n()) %>%
+  mutate(perc = round(count / var_lf * 100,
+                      digits = 2)) %>%
+  arrange(desc(count)) %>%
+  datatable()
+```
+
+<br>
+
+###### 1880 
+
+```{r}
+combined %>%
+  filter(year == 1880) %>%
+  group_by(ind1950_cat_label) %>%
+  summarise(count = n()) %>%
+  mutate(perc = round(count / var_lf * 100,
+                      digits = 2)) %>%
+  arrange(desc(count)) %>%
+  datatable()
+```
+
+<br>
+
+###### 1910 
+
+```{r}
+combined %>%
+  filter(year == 1910) %>%
+  group_by(ind1950_cat_label) %>%
+  summarise(count = n()) %>%
+  mutate(perc = round(count / var_lf * 100,
+                      digits = 2)) %>%
+  arrange(desc(count)) %>%
+  datatable()
+```
+
+<br>
+
+##### Graph of General Counts {.tabset .tabset-fade}
+
+###### General Trends
+
+```{r}
+combined %>%
+  group_by(year, ind1950_cat_label) %>%
+  summarise(count = n()) %>%
+  group_by(year) %>%
+  top_n(10, wt = count) %>%
+  
+  ggplot(aes(y = count,
+             x = reorder_within(ind1950_cat_label, count, year),
+             fill = year)) +
+  geom_col() +
+  geom_text(aes(label = count),
+            family = "Quicksand",
+            hjust = 0) +
+  facet_wrap(~year, scales = "free_x") +
+  scale_x_reordered() +
+  scale_y_continuous(expand = expand_scale(mult = c(0, 0.5))) +
+  scale_fill_manual(values = col_3) +
+  coord_flip() +
+  labs(y = "Count", x = "Industry",
+       title = "Graph of Most Popular Industry Categories across Time Periods") +
+  theme(legend.position = "none")
+```
+
+###### Percent of Labor Force
+
+```{r message = FALSE, warning = FALSE, fig.width = 10, fig.height = 6}
+combined %>%
+  group_by(year, ind1950_cat_label) %>%
+  summarise(count = n()) %>%
+  group_by(year) %>%
+  top_n(10, wt = count) %>%
+  mutate(count = case_when(
+    year == 1850 ~ count / var_lf_1850,
+    year == 1880 ~ count / var_lf_1880,
+    year == 1910 ~ count / var_lf_1910),
+    count = round(count * 100,
+                  digits = 1)) %>%
+  
+  ggplot(aes(y = count,
+             x = reorder_within(ind1950_cat_label, count, year),
+             fill = year)) +
+  geom_col() +
+  geom_text(aes(label = paste0(count, "%")),
+            family = "Quicksand",
+            hjust = 0) +
+  facet_wrap(~year, scales = "free_x") +
+  scale_x_reordered() +
+  scale_y_continuous(expand = expand_scale(mult = c(0, 0.5))) +
+  scale_fill_manual(values = col_3) +
+  coord_flip() +
+  labs(y = "Count", x = "Industry",
+       title = "Graph of Most Popular Industry Categories across Time Periods as Percentage of Labor Force") +
   theme(legend.position = "none")
 ```
 
@@ -635,7 +1178,7 @@ combined %>%
 __Occupation__
 
 ```{r message = FALSE, warning = FALSE, fig.width = 10, fig.height = 6}
-combined_1850 %>%
+combined %>%
   filter(year == 1850 & 
            occ1950_label %in% top_n_occupations(10, 1850)) %>%
   group_by(occ1950_label, ward) %>%
@@ -663,7 +1206,7 @@ combined_1850 %>%
 __Normalised by size of each ward__
 
 ```{r message = FALSE, warning = FALSE, fig.width = 10, fig.height = 6}
-combined_1850 %>%
+combined %>%
   group_by(ward) %>%
   mutate(ward_size = n()) %>%
   filter(occ1950_label %in% top_n_occupations(10, 1850)) %>%
@@ -693,7 +1236,7 @@ combined_1850 %>%
 __Grouped__
 
 ```{r message = FALSE, warning = FALSE, fig.width = 10, fig.height = 6}
-combined_1850 %>%
+combined %>%
   filter(year == 1850 & 
            occ1950_label %in% top_n_occupations(10, 1850)) %>%
   group_by(occ1950_label, ward) %>%
@@ -733,7 +1276,7 @@ combined_1850 %>%
 __Normalised and grouped by size of each ward__
 
 ```{r message = FALSE, warning = FALSE, fig.width = 10, fig.height = 6}
-combined_1850 %>%
+combined %>%
   group_by(ward) %>%
   mutate(ward_size = n()) %>%
   filter(occ1950_label %in% top_n_occupations(10, 1850)) %>%
@@ -777,7 +1320,7 @@ combined_1850 %>%
 __Race__
 
 ```{r message = FALSE, warning = FALSE, fig.width = 10, fig.height = 6}
-combined_1850 %>%
+combined %>%
   group_by(race, ward) %>%
   summarise(count = n()) %>%
   left_join(shp_1850, ., by = c("Ward_Num" = "ward")) %>%
@@ -803,7 +1346,7 @@ combined_1850 %>%
 __Normalised by size of each ward__
 
 ```{r message = FALSE, warning = FALSE, fig.width = 10, fig.height = 6}
-combined_1850 %>%
+combined %>%
   group_by(ward) %>%
   mutate(ward_size = n()) %>%
   group_by(race, ward, ward_size) %>%
@@ -832,7 +1375,7 @@ combined_1850 %>%
 __Grouped__
 
 ```{r message = FALSE, warning = FALSE, fig.width = 10, fig.height = 6}
-combined_1850 %>%
+combined %>%
   group_by(race, ward) %>%
   summarise(count = n()) %>%
   mutate(count = case_when(
@@ -870,7 +1413,7 @@ combined_1850 %>%
 __Normalised and grouped by size of each ward__
 
 ```{r message = FALSE, warning = FALSE, fig.width = 10, fig.height = 6}
-combined_1850 %>%
+combined %>%
   group_by(ward) %>%
   mutate(ward_size = n()) %>%
   group_by(race, ward, ward_size) %>%
@@ -1244,7 +1787,7 @@ sub %>%
 
 __Occupation__
 
-```{r message = FALSE, warning = FALSE, fig.width = 8, fig.height = 8, cache = TRUE}
+```{r message = FALSE, warning = FALSE, fig.width = 8, fig.height = 8}
 combined %>%
   filter(year == 1910 & 
            occ1950_label %in% top_n_occupations(10, 1910)) %>%
@@ -1272,7 +1815,7 @@ combined %>%
 
 __Normalised by size of each enumeration district__
 
-```{r message = FALSE, warning = FALSE, fig.width = 8, fig.height = 8, cache = TRUE}
+```{r message = FALSE, warning = FALSE, fig.width = 8, fig.height = 8}
 combined %>%
   filter(year == 1910) %>%
   group_by(enumdist) %>%
@@ -1303,7 +1846,7 @@ combined %>%
 
 __Grouped__
 
-```{r message = FALSE, warning = FALSE, fig.width = 8, fig.height = 8, cache = TRUE}
+```{r message = FALSE, warning = FALSE, fig.width = 8, fig.height = 8}
 combined %>%
   filter(year == 1910 & 
            occ1950_label %in% top_n_occupations(10, 1910)) %>%
@@ -1344,7 +1887,7 @@ combined %>%
 
 __Grouped and Normalised by size of each enumeration district__
 
-```{r message = FALSE, warning = FALSE, fig.width = 8, fig.height = 8, cache = TRUE}
+```{r message = FALSE, warning = FALSE, fig.width = 8, fig.height = 8}
 combined %>%
   filter(year == 1910) %>%
   group_by(enumdist) %>%
@@ -1391,7 +1934,7 @@ combined %>%
 
 __Race__
 
-```{r message = FALSE, warning = FALSE, fig.width = 10, fig.height = 6, cache = TRUE}
+```{r message = FALSE, warning = FALSE, fig.width = 10, fig.height = 6}
 combined %>%
   filter(year == 1910) %>%
   group_by(race, enumdist) %>%
@@ -1418,7 +1961,7 @@ combined %>%
 
 __Normalised by size of each enumeration district__
 
-```{r message = FALSE, warning = FALSE, fig.width = 10, fig.height = 6, cache = TRUE}
+```{r message = FALSE, warning = FALSE, fig.width = 10, fig.height = 6}
 combined %>%
   filter(year == 1910) %>%
   group_by(enumdist) %>%
@@ -1488,7 +2031,7 @@ combined %>%
 
 __Grouped and Normalised by size of each enumeration district__
 
-```{r message = FALSE, warning = FALSE, fig.width = 10, fig.height = 6, cache = TRUE}
+```{r message = FALSE, warning = FALSE, fig.width = 10, fig.height = 6}
 combined %>%
   filter(year == 1910) %>%
   group_by(enumdist) %>%
@@ -1529,7 +2072,9 @@ combined %>%
 
 ### 5. Analysis of Changing Trends {.tabset .tabset-fade}
 
-#### Graph of Top 10 Occupations
+#### OCC {.tabset .tabset-fade}
+
+##### Graph of Top 10 Occupations
 
 ```{r message = FALSE, warning = FALSE, fig.width = 10, fig.height = 6}
 top_10_occ_combined = c(top_n_occupations(10, 1850),
@@ -1584,7 +2129,7 @@ combined %>%
 
 <br>
 
-#### Graph of Top 10 Occupations, Normalised
+##### Graph of Top 10 Occupations, Normalised
 
 ```{r message = FALSE, warning = FALSE, fig.width = 10, fig.height = 6}
 combined %>% 
@@ -1627,14 +2172,14 @@ combined %>%
 
 <br>
 
-#### Maps of Top Occupation {.tabset .tabset-fade}
+##### Maps of Top Occupation {.tabset .tabset-fade}
 
-##### Operative and kindred workers (n.e.c.) 
+###### Operative and kindred workers (n.e.c.) 
 
 __Operative and kindred workers (n.e.c.)__
 
-```{r}
-tmp_map_1850 = combined_1850 %>%
+```{r message = FALSE, warning = FALSE, fig.width = 10, fig.height = 6}
+tmp_map_1850 = combined %>%
   filter(year == 1850,
          occ1950_label == "Operative and kindred workers (n.e.c.)") %>%
   group_by(ward) %>%
@@ -1704,8 +2249,8 @@ ggarrange(tmp_map_1850, tmp_map_1880, tmp_map_1910,
 
 __Operative and kindred workers (n.e.c.) Normalised__
 
-```{r}
-tmp_map_1850 = combined_1850 %>%
+```{r message = FALSE, warning = FALSE, fig.width = 10, fig.height = 6}
+tmp_map_1850 = combined %>%
   group_by(ward) %>%
   mutate(ward_size = n()) %>%
   filter(year == 1850,
@@ -1818,12 +2363,12 @@ ggarrange(tmp_map_1850, tmp_map_1880, tmp_map_1910,
 
 <br>
 
-##### Managers, officials, and proprietors (n.e.c.) (n.e.c.) 
+###### Managers, officials, and proprietors (n.e.c.) (n.e.c.) 
 
 __Managers, officials, and proprietors (n.e.c.)__
 
 ```{r}
-tmp_map_1850 = combined_1850 %>%
+tmp_map_1850 = combined %>%
   filter(year == 1850,
          occ1950_label == "Managers, officials, and proprietors (n.e.c.)") %>%
   group_by(ward) %>%
@@ -1894,7 +2439,7 @@ ggarrange(tmp_map_1850, tmp_map_1880, tmp_map_1910,
 __Managers, officials, and proprietors (n.e.c.) Normalised__
 
 ```{r}
-tmp_map_1850 = combined_1850 %>%
+tmp_map_1850 = combined %>%
   group_by(ward) %>%
   mutate(ward_size = n()) %>%
   filter(year == 1850,
@@ -2006,6 +2551,345 @@ ggarrange(tmp_map_1850, tmp_map_1880, tmp_map_1910,
 ```
 
 <br>
+
+#### Occ Categories {.tabset .tabset-fade}
+
+##### Graph of Top 10 Occupation Categories
+
+```{r message = FALSE, warning = FALSE, fig.width = 10, fig.height = 6}
+top_10_occ_cat_combined = c(top_n_occupation_cat(10, 1850),
+                            top_n_occupation_cat(10, 1880),
+                            top_n_occupation_cat(10, 1910)) %>%
+  unique()
+top_10_occ_cat_combined = 
+  data.frame(year = rep(c(1850, 1880, 1910), 
+                        each = length(top_10_occ_cat_combined)),
+             occ1950_cat_label = rep(top_10_occ_cat_combined, 3),
+             stringsAsFactors = FALSE)
+
+top_10_occ_cat_combined = top_10_occ_cat_combined %>%
+  mutate(top = case_when(
+    year == 1850 & occ1950_cat_label %in% top_n_occupation_cat(10, 1850) ~ 1,
+    year == 1880 & occ1950_cat_label %in% top_n_occupation_cat(10, 1880) ~ 1,
+    year == 1910 & occ1950_cat_label %in% top_n_occupation_cat(10, 1910) ~ 1,
+    TRUE ~ 0
+  ))
+
+combined %>% 
+  mutate(year = as.numeric(as.character(year))) %>%
+  filter(occ1950_cat_label %in% top_10_occ_cat_combined$occ1950_cat_label) %>%
+  group_by(year, occ1950_cat_label) %>%
+  summarise(count = n()) %>%
+  
+  left_join(top_10_occ_cat_combined, ., 
+            by = c("year", "occ1950_cat_label")) %>%
+  
+  group_by(occ1950_cat_label) %>%
+  mutate(difference = first(count) - last(count),
+         colour = ifelse(difference > 0,
+                         1,
+                         0)) %>%
+  
+  ggplot(aes(y = count, x = year)) +
+  geom_col(aes(fill = factor(colour),
+               col = factor(top)),
+           size = 1) +
+  facet_wrap(~reorder(occ1950_cat_label, difference), 
+             scales = "free_y") +
+  
+  scale_x_continuous(breaks = c(1850, 1880, 1910)) +
+  scale_fill_manual(values = c("#56c1ab", "#ee4c58")) +
+  scale_color_manual(values = c("white", "black")) +
+  
+  labs(y = "Occupations", col = "Year", x = "Count",
+       title = "Graph of Occupation Counts in Top 10 Occupations from 1850, 1880 and 1910",
+       caption = "Note: Black borders were if the category was a top 10 category in that time\nperiod. Categories are ordered by the size of change from 1850 to 1910") +
+  theme(legend.position = "none")
+```
+
+<br>
+
+##### Graph of Top 10 Occupation Categories, Normalised
+
+```{r message = FALSE, warning = FALSE, fig.width = 10, fig.height = 6}
+combined %>% 
+  mutate(year = as.numeric(as.character(year))) %>%
+  filter(occ1950_cat_label %in% top_10_occ_cat_combined$occ1950_cat_label) %>%
+  group_by(year, occ1950_cat_label) %>%
+  summarise(count = n()) %>%
+  
+  mutate(count = case_when(
+    year == 1850 ~ count / var_lf_1850 * 100,
+    year == 1880 ~ count / var_lf_1880 * 100,
+    year == 1910 ~ count / var_lf_1910 * 100
+  )) %>%
+  
+  left_join(top_10_occ_cat_combined, ., 
+            by = c("year", "occ1950_cat_label")) %>%
+  
+  group_by(occ1950_cat_label) %>%
+  mutate(difference = first(count) - last(count),
+         colour = ifelse(difference > 0,
+                         1,
+                         0)) %>%
+  
+  ggplot(aes(y = count, x = year)) +
+  geom_col(aes(fill = factor(colour),
+               col = factor(top)),
+           size = 1) +
+  facet_wrap(~reorder(occ1950_cat_label, difference), 
+             scales = "free_y") +
+  
+  scale_x_continuous(breaks = c(1850, 1880, 1910)) +
+  scale_fill_manual(values = c("#56c1ab", "#ee4c58")) +
+  scale_color_manual(values = c("white", "black")) +
+  
+  labs(y = "Occupations", col = "Year", x = "Count",
+       title = "Graph of Occupation Counts in Top 10 Occupation Categories from 1850, 1880 and 1910",
+       caption = "Note: Black borders were if the category was a top 10 category in that time\nperiod. Categories are ordered by the size of change from 1850 to 1910") +
+  theme(legend.position = "none")
+```
+
+<br>
+
+#### Industry {.tabset .tabset-fade}
+
+##### Graph of Top 10 Industries
+
+```{r message = FALSE, warning = FALSE, fig.width = 10, fig.height = 6}
+top_10_ind_combined = c(top_n_industry(10, 1850),
+                        top_n_industry(10, 1880),
+                        top_n_industry(10, 1910)) %>%
+  unique()
+top_10_ind_combined = 
+  data.frame(year = rep(c(1850, 1880, 1910), 
+                        each = length(top_10_ind_combined)),
+             ind1950_label = rep(top_10_ind_combined, 3),
+             stringsAsFactors = FALSE)
+
+top_10_ind_combined = top_10_ind_combined %>%
+  mutate(top = case_when(
+    year == 1850 & ind1950_label %in% top_n_industry(10, 1850) ~ 1,
+    year == 1880 & ind1950_label %in% top_n_industry(10, 1880) ~ 1,
+    year == 1910 & ind1950_label %in% top_n_industry(10, 1910) ~ 1,
+    TRUE ~ 0
+  ))
+
+combined %>% 
+  mutate(year = as.numeric(as.character(year))) %>%
+  filter(ind1950_label %in% top_10_ind_combined$ind1950_label) %>%
+  group_by(year, ind1950_label) %>%
+  summarise(count = n()) %>%
+  
+  left_join(top_10_ind_combined, ., 
+            by = c("year", "ind1950_label")) %>%
+  
+  group_by(ind1950_label) %>%
+  mutate(difference = first(count) - last(count),
+         colour = ifelse(difference > 0,
+                         1,
+                         0)) %>%
+  
+  ggplot(aes(y = count, x = year)) +
+  geom_col(aes(fill = factor(colour),
+               col = factor(top)),
+           size = 1) +
+  facet_wrap(~reorder(ind1950_label, difference), 
+             scales = "free_y") +
+  
+  scale_x_continuous(breaks = c(1850, 1880, 1910)) +
+  scale_fill_manual(values = c("#56c1ab", "#ee4c58")) +
+  scale_color_manual(values = c("white", "black")) +
+  
+  labs(y = "Industry", col = "Year", x = "Count",
+       title = "Graph of Industry Counts in Top 10 Industry from 1850, 1880 and 1910",
+       caption = "Note: Black borders were if the category was a top 10 industry in that time\nperiod. Industries are ordered by the size of change from 1850 to 1910") +
+  theme(legend.position = "none")
+```
+
+<br>
+
+##### Graph of Top 10 Industries, Normalised
+
+```{r message = FALSE, warning = FALSE, fig.width = 10, fig.height = 6}
+combined %>% 
+  mutate(year = as.numeric(as.character(year))) %>%
+  filter(ind1950_label %in% top_10_ind_combined$ind1950_label) %>%
+  group_by(year, ind1950_label) %>%
+  summarise(count = n()) %>%
+  
+  mutate(count = case_when(
+    year == 1850 ~ count / var_lf_1850 * 100,
+    year == 1880 ~ count / var_lf_1880 * 100,
+    year == 1910 ~ count / var_lf_1910 * 100
+  )) %>%
+  
+  left_join(top_10_ind_combined, ., 
+            by = c("year", "ind1950_label")) %>%
+  
+  group_by(ind1950_label) %>%
+  mutate(difference = first(count) - last(count),
+         colour = ifelse(difference > 0,
+                         1,
+                         0)) %>%
+  
+  ggplot(aes(y = count, x = year)) +
+  geom_col(aes(fill = factor(colour),
+               col = factor(top)),
+           size = 1) +
+  facet_wrap(~reorder(ind1950_label, difference), 
+             scales = "free_y") +
+  
+  scale_x_continuous(breaks = c(1850, 1880, 1910)) +
+  scale_fill_manual(values = c("#56c1ab", "#ee4c58")) +
+  scale_color_manual(values = c("white", "black")) +
+  
+  labs(y = "Occupations", col = "Year", x = "Count",
+       title = "Graph of Industry Counts in Top 10 Industries from 1850, 1880 and 1910",
+       caption = "Note: Black borders were if the industry was a top 10 industry in that time\nperiod. Industries are ordered by the size of change from 1850 to 1910") +
+  theme(legend.position = "none")
+```
+
+<br>
+
+#### Industry Categories {.tabset .tabset-fade}
+
+##### Graph of Top 10 Industries Categories
+
+```{r message = FALSE, warning = FALSE, fig.width = 10, fig.height = 6}
+top_10_ind_cat_combined = c(top_n_industry_cat(10, 1850),
+                        top_n_industry_cat(10, 1880),
+                        top_n_industry_cat(10, 1910)) %>%
+  unique()
+top_10_ind_cat_combined = 
+  data.frame(year = rep(c(1850, 1880, 1910), 
+                        each = length(top_10_ind_cat_combined)),
+             ind1950_cat_label = rep(top_10_ind_cat_combined, 3),
+             stringsAsFactors = FALSE)
+
+top_10_ind_cat_combined = top_10_ind_cat_combined %>%
+  mutate(top = case_when(
+    year == 1850 & ind1950_cat_label %in% top_n_industry_cat(10, 1850) ~ 1,
+    year == 1880 & ind1950_cat_label %in% top_n_industry_cat(10, 1880) ~ 1,
+    year == 1910 & ind1950_cat_label %in% top_n_industry_cat(10, 1910) ~ 1,
+    TRUE ~ 0
+  ))
+
+combined %>% 
+  mutate(year = as.numeric(as.character(year))) %>%
+  filter(ind1950_cat_label %in% top_10_ind_cat_combined$ind1950_cat_label) %>%
+  group_by(year, ind1950_cat_label) %>%
+  summarise(count = n()) %>%
+  
+  left_join(top_10_ind_cat_combined, ., 
+            by = c("year", "ind1950_cat_label")) %>%
+  
+  group_by(ind1950_cat_label) %>%
+  mutate(difference = first(count) - last(count),
+         colour = ifelse(difference > 0,
+                         1,
+                         0)) %>%
+  
+  ggplot(aes(y = count, x = year)) +
+  geom_col(aes(fill = factor(colour),
+               col = factor(top)),
+           size = 1) +
+  facet_wrap(~reorder(ind1950_cat_label, difference), 
+             scales = "free_y") +
+  
+  scale_x_continuous(breaks = c(1850, 1880, 1910)) +
+  scale_fill_manual(values = c("#56c1ab", "#ee4c58")) +
+  scale_color_manual(values = c("white", "black")) +
+  
+  labs(y = "Industry", col = "Year", x = "Count",
+       title = "Graph of Industry Category Counts in Top 10 Industry Caetegories from 1850, 1880 and 1910",
+       caption = "Note: Black borders were if the category was a top 10 industry in that time\nperiod. Categories are ordered by the size of change from 1850 to 1910") +
+  theme(legend.position = "none")
+```
+
+<br>
+
+##### Graph of Top 10 Occupation Categories, Normalised
+
+```{r message = FALSE, warning = FALSE, fig.width = 10, fig.height = 6}
+combined %>% 
+  mutate(year = as.numeric(as.character(year))) %>%
+  filter(ind1950_cat_label %in% top_10_ind_cat_combined$ind1950_cat_label) %>%
+  group_by(year, ind1950_cat_label) %>%
+  summarise(count = n()) %>%
+  
+  mutate(count = case_when(
+    year == 1850 ~ count / var_lf_1850 * 100,
+    year == 1880 ~ count / var_lf_1880 * 100,
+    year == 1910 ~ count / var_lf_1910 * 100
+  )) %>%
+  
+  left_join(top_10_ind_cat_combined, ., 
+            by = c("year", "ind1950_cat_label")) %>%
+  
+  group_by(ind1950_cat_label) %>%
+  mutate(difference = first(count) - last(count),
+         colour = ifelse(difference > 0,
+                         1,
+                         0)) %>%
+  
+  ggplot(aes(y = count, x = year)) +
+  geom_col(aes(fill = factor(colour),
+               col = factor(top)),
+           size = 1) +
+  facet_wrap(~reorder(ind1950_cat_label, difference), 
+             scales = "free_y") +
+  
+  scale_x_continuous(breaks = c(1850, 1880, 1910)) +
+  scale_fill_manual(values = c("#56c1ab", "#ee4c58")) +
+  scale_color_manual(values = c("white", "black")) +
+  
+  labs(y = "Occupations", col = "Year", x = "Count",
+       title = "Graph of Industry Category Counts in Top 10 Industries from 1850, 1880 and 1910",
+       caption = "Note: Black borders were if the category was a top 10 category in that time\nperiod. Categories are ordered by the size of change from 1850 to 1910") +
+  theme(legend.position = "none")
+```
+
+### 6. Heatmaps of Combinations {.tabset .tabset-fade}
+
+#### Occupation
+
+```{r fig.height = 25}
+combined %>%
+  group_by(occ1950_label, occ1950_cat_label) %>%
+  summarise(count = n()) %>%
+  
+  ggplot(aes(y = occ1950_label, 
+             x = occ1950_cat_label,
+             fill = count)) +
+  geom_tile() +
+  scale_fill_viridis_c() + 
+  labs(y = "Occupations", x = "Occupation categories",
+       title = "Heatmap of Occupation and Occupation Categories") + 
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+
+<br>
+
+#### Industries
+
+```{r fig.height = 25}
+combined %>%
+  group_by(ind1950_label, ind1950_cat_label) %>%
+  summarise(count = n()) %>%
+  
+  ggplot(aes(y = ind1950_label, 
+             x = ind1950_cat_label,
+             fill = count)) +
+  geom_tile() +
+  scale_fill_viridis_c() + 
+  labs(y = "Industries", x = "Industry categories",
+       title = "Heatmap of Industry and Industry Categories") + 
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+
+
+
 
 
 

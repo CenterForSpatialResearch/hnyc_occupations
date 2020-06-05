@@ -197,7 +197,7 @@ s_1850 %>%
 s_1850 %>%
   filter(occ != 999 &
            labforce == "N/A") %>%
-  group_by(label, occstr, sex) %>%
+  group_by(occ_label, occstr, sex) %>%
   summarise(count = n(), avg_age = mean(age)) %>%
   arrange(desc(count)) %>%
   kable() %>%
@@ -217,7 +217,7 @@ s_1850 %>%
 s_1850 %>%
   filter(occ != 999 &
            labforce == "No, not in the labor force") %>%
-  group_by(label, occstr) %>%
+  group_by(occ_label, occstr) %>%
   summarise(count = n(), avg_age = mean(age)) %>%
   arrange(desc(count)) %>%
   kable() %>%
@@ -257,7 +257,7 @@ s_1880 %>%
 ```{r}
 s_1880 %>%
   filter(labforce == "N/A") %>%
-  group_by(label,occstr, sex) %>%
+  group_by(occ_label,occstr, sex) %>%
   summarise(count = n(), avg_age = mean(age)) %>%
   arrange(desc(count)) %>%
   kable() %>%
@@ -276,7 +276,7 @@ s_1880 %>%
 ```{r}
 s_1880 %>%
   filter(labforce == "No, not in the labor force") %>%
-  group_by(label, occstr, sex) %>%
+  group_by(occ_label, occstr, sex) %>%
   summarise(count = n(), avg_age = mean(age)) %>%
   arrange(desc(count)) %>%
   kable() %>%
@@ -316,7 +316,7 @@ s_1910 %>%
 ```{r}
 s_1910 %>%
   filter(labor_force == "N/A") %>%
-  group_by(label,sex) %>%
+  group_by(occ1950_label,sex) %>%
   summarise(count = n(), avg_age = mean(age)) %>%
   arrange(desc(count)) %>%
   kable() %>%
@@ -334,7 +334,7 @@ s_1910 %>%
 ```{r}
 s_1910 %>%
   filter(labor_force == "No, not in the labor force") %>%
-  group_by(label,occstr,sex) %>%
+  group_by(occ1950_label,occstr,sex) %>%
   summarise(count = n(), avg_age = mean(age)) %>%
   arrange(desc(count)) %>%
   kable() %>%
@@ -346,3 +346,17 @@ s_1910 %>%
 * The minority of green points were "Gentleman/lady/at leisure", which appears to be some variation of "Retired", given that this group had a much higher average age.
 
 <br>
+
+### 3. Missing OCC Labels
+
+```{r}
+combined_1880 %>%
+  filter(occ == 999 | occ1950 == "N/A (blank)") %>%
+  group_by(occ, occ1950, occstr) %>%
+  summarise(count = n()) %>%
+  arrange(desc(count)) %>%
+  kable() %>%
+  kable_styling() %>%
+  scroll_box(width = "100%", height = "300px")
+```
+
