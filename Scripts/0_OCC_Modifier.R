@@ -96,7 +96,7 @@ occ_modifier = function(x) {
       str_detect(x, pattern = "stone\\s?cutt?er")             ~ "cutter",
       # priority given to cutter
       str_detect(x, pattern = "teamster")                     ~ "teamster",
-      str_detect(x, pattern = "act(or|ress)")                 ~ "actor",
+      str_detect(x, pattern = "\\bact(or|ress)")              ~ "actor",
       str_detect(x, pattern = "school\\s?teacher")            ~ "teacher",
       # priority given to teacher
       str_detect(x, pattern = "office (boy/girl)")            ~ "office boy",

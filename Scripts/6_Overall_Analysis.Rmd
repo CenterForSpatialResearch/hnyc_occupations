@@ -46,6 +46,7 @@ library(psych)
 library(sf)
 library(leaflet)
 library(ggpubr)
+library(classInt)
 
 # Theme setting for visualisations
 theme_set(theme_minimal() + 
@@ -57,6 +58,7 @@ options(scipen = 999)
 # Source occ_modifier
 source("0_OCC_Modifier.R")
 source("0_Categories_Generator.R")
+source("0_OCCSCOR_Modifier.R")
 
 # Reference files
 OCC_1880 = readr::read_csv("../Data/OCC1880.csv")
@@ -100,11 +102,13 @@ combined = combined %>%
                                       "No, not in the labor force",
                                       "Yes, in the labor force"))) %>%
   
-  select(year, age, sex, race, city, 
-         enumdist, ward, labforce,
+  select(year, age, sex, race, 
+         bpl, bplstr,
+         city, enumdist, ward, labforce,
          occstr,
          occ, occ_label, occ_cat_label, 
          occ1950, occ1950_label, occ1950_cat_label,
+         occscore,
          ind1950, ind1950_label, ind1950_cat_label) %>%
   
   # Data prepping for combining
@@ -130,31 +134,90 @@ rm(mn_1880)
 
 # Combining Data
 combined_1880 = combined_1880 %>% 
-  select(age, sex, race, labforce,
+  select(age, sex, race, bpl, occscore, labforce,
          occ, city, occstr, occ1950_label = occ1950, 
          enumdist, ind1950_label = ind1950) %>%
   left_join(OCC_1880, by = c("occ" = "code")) %>%
+  left_join(OCC_1950, by = c("occ1950_label" = "occ1950_label")) %>% 
+  left_join(IND_1950) %>% 
+  mutate(occ1950 = as.numeric(code)) %>%  
   mutate(occ_cat_label = add_occ_cat_label(.),
          age = ifelse(age == "Less than 1 year old",
                       0,
                       age),
          age = as.numeric(age),
+         bplstr = bpl,
+         bpl = NA_character_,
          year = 1880,
          ward = NA_integer_,
-         occ1950 = NA_integer_,
-         occ1950_cat_label = NA_character_,
-         ind1950 = NA_integer_,
-         ind1950_cat_label = NA_character_) %>%
+         ind1950_cat_label = add_ind1950_cat_label(.), 
+         occ1950_cat_label = add_occ1950_cat_label(.)) %>%
   
-  select(year, age, sex, race, city, 
-         enumdist, ward, labforce,
+  select(year, age, sex, race, 
+         bpl, bplstr,
+         city, enumdist, ward, labforce,
          occstr,
          occ, occ_label, occ_cat_label, 
          occ1950, occ1950_label, occ1950_cat_label,
+         occscore,
          ind1950, ind1950_label, ind1950_cat_label) %>%
   
   # Data prepping for combining
   filter(labforce == "Yes, in the labor force")
+```
+
+#### Preparing 1880 OCC Crosswalk for 1910 Recode
+
+```{r message = FALSE, warning = FALSE, eval = FALSE}
+
+#Resolve Blanks / Non Occupational Responses and create join table
+occ_blank <- combined_1880 %>% 
+    filter(occ == 999) %>% 
+    group_by(occ1950_label, occ1950, 
+             occstr, occ, occ_label) %>%
+    summarise(count = n())
+
+occ_join <- combined_1880 %>%
+     #mutate(occstr_mod = occ_modifier(occstr)) %>% 
+     #group_by(occstr_mod) %>% 
+     group_by(occstr) %>% 
+     mutate(occ_count = n_distinct(occ_label), 
+            occstr_merge = paste0(unique(occstr), collapse = "; ")) %>% 
+     group_by(occ, occ_label, 
+              occstr, occstr_merge, 
+              occ_cat_label, occ_count) %>%
+     summarise(count = n()) %>% 
+    
+    #reduce where there are multiple returns for LABORERS
+    ungroup() %>% 
+    
+    mutate(occ = ifelse(occ_count >= 2, 39, occ),
+           occ_label = ifelse(occ_count >= 2, "Laborers (not specified)", occ_label),
+           occ_cat_label = ifelse(occ_count >= 2, "Professional and Personal Services", occ_cat_label)) %>% 
+    group_by(occstr, occ, occ_label, occ_cat_label) %>% 
+    summarise(count = n()) %>% 
+    ungroup() %>% 
+    select(-count)
+
+#handle blank fields, standardize with occ_modifier in case of blank occ, add join fields
+occ_crosswalk <-  occ_join %>% 
+    mutate(occstr_mod = occ_modifier(occstr)) %>% 
+    left_join(occ_join, by = c("occstr_mod" = "occstr")) %>% 
+    mutate(occ = ifelse(occ.x == 999, occ.y, occ.x),
+           occ_label = ifelse(occ.x == 999, occ_label.y, occ_label.x),
+           occ_cat_label = ifelse(occ.x == 999, occ_cat_label.y, occ_cat_label.x)) %>% 
+    select(occstr, occstr_mod, occ, occ_label, occ_cat_label)
+    
+## -----
+
+####This could be refined through consideration of industry, addition of other variables that may facilitate more accurate match / occ assignment
+
+#####This could be refined through an application of OCC_Modifier, so that the crosswalk joins on standardized strings (but as of now this creates a lot of potential for mis/multiple matches)
+
+#### create occ_join occstr_join and occ_cat_label_join fields to handle blank results that could easily be cleaned up?  
+
+####Blanks coming over to 1910 from 1880 can be improved by reviewing results of join, seeing how occ_1950 was assigned, and reviewing suitabiolity / matching of occ_1950 code by grouping, or taking a bag of words approach... of the blanks, what are the most common key words in the occstr? hwo do these align with the key words of other coded varaibles? look at word correlations, pulling out certain stop words (works at, works with, etc) Can also take an approach similar to occstr standardization... 
+
 ```
 
 <br>
@@ -175,15 +238,15 @@ rm(mn_1910)
 # Combining Data
 combined_1910 = combined_1910 %>%
   left_join(OCC_1950, by = c("occ1950" = "code")) %>%
-  select(age, sex, labor_force, race, 
+  select(age, sex, labor_force, race, bpl, bplstr, occscore = occinsco, 
          occ1950, occstr, occ1950_label, city,
          enumdist, ind1950 = ind_1950) %>%
   left_join(IND_1950, by = "ind1950") %>%
-  mutate(occ = occ1950,
-         occ_label = occ1950_label,
-         ward = NA_integer_) %>%
+  # mutate(occ = occ1950,
+  #        occ_label = occ1950_label,
+  #        ward = NA_integer_) %>%
+  mutate(ward = NA_integer_) %>%
   mutate(occ1950_cat_label = add_occ1950_cat_label(.),
-         occ_cat_label = occ1950_cat_label,
          ind1950_cat_label = add_ind1950_cat_label(.),
          sex = factor(sex,
                       levels = c(1,2),
@@ -205,16 +268,23 @@ combined_1910 = combined_1910 %>%
                                   "Asian, not specified")),
          year = 1910) %>%
   
-  select(year, age, sex, race, city, 
-         enumdist, ward, labforce = labor_force,
+  select(year, age, sex, race, bpl, bplstr,
+         city, enumdist, ward, labforce = labor_force,
          occstr,
-         occ, occ_label, occ_cat_label, 
+         #occ, occ_label, occ_cat_label, 
+         occscore,
          occ1950, occ1950_label, occ1950_cat_label,
          ind1950, ind1950_label, ind1950_cat_label) %>%
   
+  left_join(occ_crosswalk, by = "occstr") %>% 
+  mutate_at(vars(occ_label), funs(replace_na(., "NOJOIN"))) %>% 
+  mutate_at(vars(occ_cat_label), funs(replace_na(., "NOJOIN"))) %>% 
+  mutate_at(vars(occ), funs(replace_na(., 9999))) %>% 
+  select(-occstr_mod) %>% 
+  
   # Data prepping for combining
   filter(labforce == "Yes, in the labor force") %>%
-  mutate(occ1950_label = occ_label,
+  mutate(#occ1950_label = occ_label,
          sex = as.character(sex),
          race = as.character(race),
          enumdist = as.numeric(enumdist))
@@ -231,18 +301,38 @@ combined =
             combined_1910) %>%
   mutate(occstr_mod = occ_modifier(occstr)) %>%
   
-  select(year, age, sex, race, city, 
-         enumdist, ward,
+  select(year, age, sex, race, bpl, bplstr,
+         city, enumdist, ward,
          occstr, occstr_mod,
-         occ, occ_label, occ_cat_label, 
+         occ, occ_label, occ_cat_label, occscore,
          occ1950, occ1950_label, occ1950_cat_label,
          ind1950, ind1950_label, ind1950_cat_label)
 ```
 
 ```{r eval = FALSE}
-rm(combined)
+#rm(combined)
 rm(combined_1880)
 rm(combined_1910)
+```
+
+#### Handling OCCSCO
+
+```{r eval = FALSE}
+combined <- 
+    combined %>% 
+    mutate(occscore_class = add_occsco_class(.)) %>% 
+    mutate(occscore_class = factor(occscore_class))
+```
+
+#### Preparing Export for Census Committee Work
+
+```{r eval = FALSE}
+
+# Handle BIRTHPLACE and BIRTHPLACE STRING fields
+combined <- 
+    combined %>% 
+    mutate(bplstr = toupper(bplstr),
+           dshbrd = 1)
 ```
 
 ```{r eval = FALSE}
@@ -265,11 +355,19 @@ sub = sub %>%
 combined = combined %>% 
   filter(year == 1850 | year == 1910) %>%
   rbind(sub)
+
+# census_occ_1850_labforce <- combined %>% 
+#     filter()
+# census_occ_1880_labforce <- combined %>% 
+#     filter()
+# census_occ_1910_labforce <- combined %>% 
+#     filter()
+
 ```
 
 
 ```{r eval = FALSE}
-readr::write_csv(combined, "combined.csv")
+readr::write_csv(combined, "combined_labforce.csv")
 ```
 
 ```{r warning = FALSE}
